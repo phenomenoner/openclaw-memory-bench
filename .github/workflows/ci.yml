@@ -15,28 +15,28 @@ jobs:
         uses: astral-sh/setup-uv@v5
 
       - name: Set up Python
-      run: uv python install 3.13
+        run: uv python install 3.13
 
       - name: Sync deps
-      run: uv sync
+        run: uv sync
 
       - name: Lint
-      run: uv run ruff check
+        run: uv run ruff check
 
       - name: Unit tests
-      run: uv run pytest -q
+        run: uv run pytest -q
 
       - name: Retrieval smoke run (openclaw-mem adapter when available)
-      run: |
-        if command -v openclaw-mem >/dev/null 2>&1; then
-          uv run openclaw-memory-bench run-retrieval \
-            --provider openclaw-mem \
-            --dataset examples/mini_retrieval.json \
-            --top-k 5
-        else
-          echo "openclaw-mem not found in CI environment, skipping adapter smoke run"
-          uv run openclaw-memory-bench doctor
-        fi
+        run: |
+          if command -v openclaw-mem >/dev/null 2>&1; then
+            uv run openclaw-memory-bench run-retrieval \
+              --provider openclaw-mem \
+              --dataset examples/mini_retrieval.json \
+              --top-k 5
+          else
+            echo "openclaw-mem not found in CI environment, skipping adapter smoke run"
+            uv run openclaw-memory-bench doctor
+          fi
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
