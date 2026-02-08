@@ -129,4 +129,5 @@ When resuming later, start from this sequence:
 
 - Keep milestone logs in: `docs/devlog/`
 - Keep decision records in: `docs/decisions/`
+- Two-plugin execution plan: `docs/FULL_BENCHMARK_PLAN.md`
 - Update this file as the single source of truth for plan + TODOs.

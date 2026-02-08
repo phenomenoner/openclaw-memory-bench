@@ -93,6 +93,7 @@ uv run openclaw-memory-bench run-retrieval \
 ## Project plan and TODOs
 
 - `docs/PROJECT_PLAN_AND_TODOS.md`
+- `docs/FULL_BENCHMARK_PLAN.md` (two-plugin full report execution plan)
 
 ## Project layout
 
