@@ -84,6 +84,16 @@ uv run openclaw-memory-bench run-retrieval \
 - `--gateway-url/--gateway-token` for gateway-backed providers (`memu-engine`)
 - `--memu-ingest-mode noop|memory_store` for memu ingestion strategy
 
+## One-shot two-plugin baseline runner (Phase A)
+
+```bash
+scripts/run_two_plugin_baseline.sh \
+  --profile configs/run-profiles/two-plugin-baseline.json
+```
+
+This orchestrator emits both provider reports and merged compare artifacts under `artifacts/full-benchmark/<run-group>/`.
+See `docs/PHASE_A_EXECUTION.md` for fallback behavior and fast pilot mode.
+
 ## Current implementation status
 
 - `openclaw-mem`: retrieval-track adapter implemented (MVP, CLI-driven)
@@ -94,6 +104,7 @@ uv run openclaw-memory-bench run-retrieval \
 
 - `docs/PROJECT_PLAN_AND_TODOS.md`
 - `docs/FULL_BENCHMARK_PLAN.md` (two-plugin full report execution plan)
+- `docs/PHASE_A_EXECUTION.md` (locked profile + one-shot baseline runner)
 
 ## Project layout
 

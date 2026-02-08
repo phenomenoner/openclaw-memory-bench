@@ -98,32 +98,46 @@ def convert_longmemeval(*, limit: int | None = None) -> dict:
         if not qid:
             continue
 
+        question = str(item.get("question") or "").strip()
+        answer = str(item.get("answer") or "").strip()
+        if not question or not answer:
+            continue
+
         sessions = []
         relevant: list[str] = []
 
         haystack_sessions = item.get("haystack_sessions") or []
-        for i, raw_session in enumerate(haystack_sessions):
-            sid = f"{qid}-session-{i}"
+        for raw_session in haystack_sessions:
             parsed_msgs = []
             has_answer = False
             for msg in raw_session:
                 role = str(msg.get("role") or "user")
-                parsed_msgs.append(_message(role, str(msg.get("content") or "")))
+                content = str(msg.get("content") or "").strip()
                 if bool(msg.get("has_answer")):
                     has_answer = True
+                if not content:
+                    continue
+                parsed_msgs.append(_message(role, content))
 
+            if not parsed_msgs:
+                continue
+
+            sid = f"{qid}-session-{len(sessions)}"
             sessions.append({"session_id": sid, "messages": parsed_msgs, "metadata": {}})
             if has_answer:
                 relevant.append(sid)
 
-        if not relevant and sessions:
+        if not sessions:
+            continue
+
+        if not relevant:
             relevant = [sessions[0]["session_id"]]
 
         questions.append(
             {
                 "question_id": qid,
-                "question": str(item.get("question") or ""),
-                "ground_truth": str(item.get("answer") or ""),
+                "question": question,
+                "ground_truth": answer,
                 "question_type": str(item.get("question_type") or "generic"),
                 "relevant_session_ids": relevant,
                 "sessions": sessions,

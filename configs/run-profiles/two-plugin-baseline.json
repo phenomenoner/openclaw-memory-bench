@@ -1,0 +1,30 @@
+{
+  "schema": "openclaw-memory-bench/run-profile/v0.1",
+  "name": "two-plugin-baseline-longmemeval-100",
+  "benchmark": "longmemeval",
+  "dataset": {
+    "limit": 100,
+    "out": "data/datasets/longmemeval-100.json"
+  },
+  "retrieval": {
+    "top_k": 10,
+    "question_limit": null
+  },
+  "providers": {
+    "openclaw-mem": {
+      "enabled": true,
+      "db_root": "artifacts/provider-state/openclaw-mem"
+    },
+    "memu-engine": {
+      "enabled": true,
+      "gateway_url": null,
+      "agent_id": "main",
+      "session_key": "main",
+      "ingest_mode": "memory_store",
+      "allow_fallback_skip_ingest": true
+    }
+  },
+  "output": {
+    "root": "artifacts/full-benchmark"
+  }
+}

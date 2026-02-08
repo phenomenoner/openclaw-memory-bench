@@ -30,6 +30,11 @@ A run package that includes:
 
 ## Remaining work to unlock the first full two-plugin report
 
+Status update (2026-02-08):
+- ✅ Phase A profile + orchestrator implemented.
+- ✅ Pilot run verified end-to-end artifact generation and memu fallback behavior.
+- ⏳ Official LongMemEval-100 run pending execution with current baseline profile.
+
 ## Phase A — Fairness baseline lock (required)
 
 1. Freeze run recipe

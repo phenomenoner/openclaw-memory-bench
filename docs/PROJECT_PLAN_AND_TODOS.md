@@ -37,6 +37,7 @@ Primary targets:
 - [x] CI baseline added (lint + tests + smoke path + artifact upload).
 - [x] Retrieval reports now embed run-manifest metadata (toolkit/git/dataset/provider/runtime).
 - [x] `prepare-dataset` now writes sidecar metadata (`*.meta.json`) with source URLs.
+- [x] Phase A baseline profile + orchestrator script added for two-plugin runs (`configs/run-profiles/two-plugin-baseline.json`, `scripts/run_two_plugin_baseline.sh`).
 
 ### Verified locally
 
