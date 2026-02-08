@@ -86,6 +86,10 @@ uv run openclaw-memory-bench run-retrieval \
 - `memu-engine`: gateway-backed adapter implemented for `memory_search` (ingest modes: `noop` / `memory_store`)
 - Canonical dataset conversion command available (`prepare-dataset`)
 
+## Project plan and TODOs
+
+- `docs/PROJECT_PLAN_AND_TODOS.md`
+
 ## Project layout
 
 - `src/openclaw_memory_bench/cli.py` — main CLI
