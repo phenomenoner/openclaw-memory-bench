@@ -100,6 +100,11 @@ def cmd_run_retrieval(args: argparse.Namespace) -> int:
         provider_config["session_key"] = args.session_key
         provider_config["ingest_mode"] = args.memu_ingest_mode
 
+    if provider == "memory-core":
+        provider_config["profile"] = args.memory_core_profile
+        provider_config["agent_id"] = args.memory_core_agent
+        provider_config["timeout_sec"] = args.memory_core_timeout_sec
+
     manifest = build_retrieval_manifest(
         run_id=run_id,
         provider=provider,
@@ -151,7 +156,7 @@ def build_parser() -> argparse.ArgumentParser:
     doctor.set_defaults(func=cmd_doctor)
 
     plan = sub.add_parser("plan", help="Generate reproducible run manifest")
-    plan.add_argument("--provider", required=True, help="openclaw-mem | memu-engine")
+    plan.add_argument("--provider", required=True, help="openclaw-mem | memu-engine | memory-core")
     plan.add_argument("--benchmark", required=True, help="locomo | longmemeval | convomem")
     plan.add_argument("--track", default="retrieval", choices=["retrieval", "e2e"])
     plan.add_argument("--limit", type=int, default=50)
@@ -166,7 +171,7 @@ def build_parser() -> argparse.ArgumentParser:
     prep.set_defaults(func=cmd_prepare_dataset)
 
     run = sub.add_parser("run-retrieval", help="Execute deterministic retrieval benchmark")
-    run.add_argument("--provider", required=True, help="openclaw-mem | memu-engine")
+    run.add_argument("--provider", required=True, help="openclaw-mem | memu-engine | memory-core")
     run.add_argument("--dataset", required=True, help="Path to retrieval dataset JSON")
     run.add_argument("--top-k", type=int, default=10)
     run.add_argument("--run-id", default=None)
@@ -191,6 +196,20 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--out", default=None, help="Output report path")
     run.add_argument("--skip-ingest", action="store_true", help="Skip adapter ingest and search existing memory")
     run.add_argument("--fail-fast", action="store_true")
+
+    # memory-core options
+    run.add_argument(
+        "--memory-core-profile",
+        default="membench-memory-core",
+        help="(memory-core) isolated OpenClaw profile name",
+    )
+    run.add_argument("--memory-core-agent", default="main", help="(memory-core) agent id")
+    run.add_argument(
+        "--memory-core-timeout-sec",
+        type=int,
+        default=120,
+        help="(memory-core) command timeout in seconds",
+    )
 
     # memu-engine / gateway options
     run.add_argument("--gateway-url", default=None, help="Gateway base URL (default from local config)")

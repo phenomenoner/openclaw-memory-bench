@@ -1,0 +1,105 @@
+{
+  "name": "dual-language-mini",
+  "questions": [
+    {
+      "question_id": "q1-zh-fact",
+      "question": "CK今天會議在什麼城市？",
+      "ground_truth": "台北",
+      "question_type": "fact-recall",
+      "relevant_session_ids": ["s-zh-1"],
+      "sessions": [
+        {
+          "session_id": "s-zh-1",
+          "messages": [
+            { "role": "user", "content": "我今天在台北開產品會議，晚上再整理筆記。" },
+            { "role": "assistant", "content": "收到，我會在晚點提醒你整理會議重點。" }
+          ],
+          "metadata": {}
+        },
+        {
+          "session_id": "s-en-1",
+          "messages": [
+            { "role": "user", "content": "I booked a train ticket to Taichung for next week." },
+            { "role": "assistant", "content": "Got it, next week is Taichung." }
+          ],
+          "metadata": {}
+        }
+      ]
+    },
+    {
+      "question_id": "q2-en-fact",
+      "question": "Which broker did CK use for US equities in this memory set?",
+      "ground_truth": "IBKR",
+      "question_type": "fact-recall",
+      "relevant_session_ids": ["s-en-2"],
+      "sessions": [
+        {
+          "session_id": "s-en-2",
+          "messages": [
+            { "role": "user", "content": "For US equities I switched back to IBKR due to lower fees." },
+            { "role": "assistant", "content": "Noted: US equities broker preference is IBKR." }
+          ],
+          "metadata": {}
+        },
+        {
+          "session_id": "s-zh-2",
+          "messages": [
+            { "role": "user", "content": "台股我還是用本地券商，不跟美股帳戶混在一起。" },
+            { "role": "assistant", "content": "了解，台股和美股帳戶分開管理。" }
+          ],
+          "metadata": {}
+        }
+      ]
+    },
+    {
+      "question_id": "q3-cross-zh-query-en-answer",
+      "question": "提醒我上次提到的 stop loss 規則（中文問）",
+      "ground_truth": "single-position hard stop at -3%",
+      "question_type": "cross-lingual",
+      "relevant_session_ids": ["s-mix-1"],
+      "sessions": [
+        {
+          "session_id": "s-mix-1",
+          "messages": [
+            { "role": "user", "content": "Risk rule update: single-position hard stop at -3%, no exceptions." },
+            { "role": "assistant", "content": "收到，單筆部位硬停損 -3%。" }
+          ],
+          "metadata": {}
+        },
+        {
+          "session_id": "s-mix-2",
+          "messages": [
+            { "role": "user", "content": "Take-profit rule stays split: 40% at +8%, rest trailing." },
+            { "role": "assistant", "content": "Noted, that is the take-profit plan." }
+          ],
+          "metadata": {}
+        }
+      ]
+    },
+    {
+      "question_id": "q4-cross-en-query-zh-answer",
+      "question": "Where did CK say he would write the execution summary tonight?",
+      "ground_truth": "Notion",
+      "question_type": "cross-lingual",
+      "relevant_session_ids": ["s-mix-3"],
+      "sessions": [
+        {
+          "session_id": "s-mix-3",
+          "messages": [
+            { "role": "user", "content": "今晚我會把執行摘要寫在 Notion，不放在 Telegram。" },
+            { "role": "assistant", "content": "了解，今晚摘要放 Notion。" }
+          ],
+          "metadata": {}
+        },
+        {
+          "session_id": "s-mix-4",
+          "messages": [
+            { "role": "user", "content": "明早再把重點轉貼到群組。" },
+            { "role": "assistant", "content": "Got it, repost tomorrow morning." }
+          ],
+          "metadata": {}
+        }
+      ]
+    }
+  ]
+}

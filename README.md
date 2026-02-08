@@ -4,6 +4,7 @@ CLI-first benchmark toolkit for **OpenClaw memory-layer plugins**.
 
 This project is designed to provide a reproducible, non-interactive evaluation workflow for memory plugins such as:
 - `openclaw-mem`
+- `memory-core` (OpenClaw built-in memory)
 - `memu-engine-for-OpenClaw`
 - future OpenClaw memory-layer plugins
 
@@ -46,6 +47,13 @@ uv run openclaw-memory-bench run-retrieval \
   --dataset examples/mini_retrieval.json \
   --top-k 5
 
+# Run against isolated memory-core profile (no main-system pollution)
+uv run openclaw-memory-bench run-retrieval \
+  --provider memory-core \
+  --dataset examples/mini_retrieval.json \
+  --top-k 5 \
+  --memory-core-profile membench-memory-core
+
 # Prepare canonical dataset (download + convert)
 uv run openclaw-memory-bench prepare-dataset \
   --benchmark longmemeval \
@@ -80,6 +88,7 @@ uv run openclaw-memory-bench run-retrieval \
 - `--fail-fast` stop on first question failure
 - `--db-root <dir>` per-container sqlite storage root for `openclaw-mem`
 - `--openclaw-mem-cmd ...` override adapter command base when needed
+- `--memory-core-profile <name>` isolated OpenClaw profile for `memory-core`
 - `--skip-ingest` run search-only against existing memory state
 - `--gateway-url/--gateway-token` for gateway-backed providers (`memu-engine`)
 - `--memu-ingest-mode noop|memory_store` for memu ingestion strategy
@@ -94,9 +103,21 @@ scripts/run_two_plugin_baseline.sh \
 This orchestrator emits both provider reports and merged compare artifacts under `artifacts/full-benchmark/<run-group>/`.
 See `docs/PHASE_A_EXECUTION.md` for fallback behavior and fast pilot mode.
 
+## One-shot sidecar pilot (memory-core vs openclaw-mem)
+
+```bash
+scripts/run_memory_core_vs_openclaw_mem.sh \
+  --dataset examples/dual_language_mini.json \
+  --top-k 5
+```
+
+Artifacts are written under `artifacts/sidecar-compare/<run-group>/`.
+This path is isolated from the main OpenClaw system via an independent memory-core profile (`membench-memory-core`) and per-run openclaw-mem sqlite roots.
+
 ## Current implementation status
 
 - `openclaw-mem`: retrieval-track adapter implemented (MVP, CLI-driven)
+- `memory-core`: retrieval-track adapter implemented (isolated `--profile` mode)
 - `memu-engine`: gateway-backed adapter implemented for `memory_search` (ingest modes: `noop` / `memory_store`)
 - Canonical dataset conversion command available (`prepare-dataset`)
 
