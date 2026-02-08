@@ -51,9 +51,13 @@ uv run openclaw-memory-bench prepare-dataset \
   --benchmark longmemeval \
   --limit 50 \
   --out data/datasets/longmemeval-50.json
+# Writes dataset + sidecar metadata:
+# - data/datasets/longmemeval-50.json
+# - data/datasets/longmemeval-50.json.meta.json
 ```
 
 The run command writes a JSON report under `artifacts/<run-id>/retrieval-report.json` by default.
+Reports now embed a reproducibility manifest (`report.manifest`) containing toolkit version, git commit, dataset hash/meta, provider config (sanitized), and runtime metadata.
 
 For dataset schema, see `docs/dataset-format.md`.
 

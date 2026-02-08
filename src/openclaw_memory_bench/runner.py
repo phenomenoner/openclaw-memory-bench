@@ -30,6 +30,7 @@ def run_retrieval_benchmark(
     fail_fast: bool = False,
     limit: int | None = None,
     skip_ingest: bool = False,
+    manifest: dict | None = None,
 ) -> dict:
     adapters = available_adapters()
     if provider not in adapters:
@@ -107,7 +108,7 @@ def run_retrieval_benchmark(
                 break
 
     report = {
-        "schema": "openclaw-memory-bench/retrieval-report/v0.1",
+        "schema": "openclaw-memory-bench/retrieval-report/v0.2",
         "run_id": run_id,
         "provider": provider,
         "dataset": dataset.name,
@@ -116,6 +117,7 @@ def run_retrieval_benchmark(
         "config": {
             "skip_ingest": skip_ingest,
         },
+        "manifest": manifest,
         "summary": {
             "questions_total": len(questions),
             "questions_succeeded": len(results),

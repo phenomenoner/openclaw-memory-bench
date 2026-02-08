@@ -195,6 +195,21 @@ def convert_convomem(*, limit: int | None = None) -> dict:
     return {"name": "convomem", "questions": questions}
 
 
+def benchmark_sources(benchmark: str) -> list[str]:
+    b = benchmark.lower()
+    if b == "locomo":
+        return [LOCOMO_URL]
+    if b == "longmemeval":
+        return [LONGMEMEVAL_URL]
+    if b == "convomem":
+        urls: list[str] = []
+        for category, folders in CONVOMEM_CATEGORIES.items():
+            for folder in folders:
+                urls.append(f"{CONVOMEM_BASE}/{category}/{folder}/batched_000.json")
+        return urls
+    raise ValueError(f"Unsupported benchmark: {benchmark}")
+
+
 def convert_benchmark(benchmark: str, *, limit: int | None = None) -> dict:
     b = benchmark.lower()
     if b == "locomo":

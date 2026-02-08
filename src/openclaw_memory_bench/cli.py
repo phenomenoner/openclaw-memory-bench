@@ -7,8 +7,9 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from .adapters import available_adapters
-from .converters import convert_benchmark, write_dataset
+from .converters import benchmark_sources, convert_benchmark, write_dataset
 from .dataset import load_retrieval_dataset
+from .manifest import build_retrieval_manifest
 from .runner import run_retrieval_benchmark, save_report
 
 
@@ -53,11 +54,23 @@ def cmd_plan(args: argparse.Namespace) -> int:
 def cmd_prepare_dataset(args: argparse.Namespace) -> int:
     data = convert_benchmark(args.benchmark, limit=args.limit)
     out = write_dataset(data, args.out)
+
+    meta = {
+        "schema": "openclaw-memory-bench/dataset-meta/v0.1",
+        "benchmark": args.benchmark,
+        "limit": args.limit,
+        "converted_at_utc": datetime.now(UTC).isoformat(),
+        "sources": benchmark_sources(args.benchmark),
+    }
+    meta_path = out.with_name(f"{out.name}.meta.json")
+    meta_path.write_text(json.dumps(meta, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
     payload = {
         "ok": True,
         "benchmark": args.benchmark,
         "questions": len(data.get("questions", [])),
         "out": str(out),
+        "meta": str(meta_path),
     }
     print(json.dumps(payload, ensure_ascii=False, indent=2))
     return 0
@@ -87,6 +100,19 @@ def cmd_run_retrieval(args: argparse.Namespace) -> int:
         provider_config["session_key"] = args.session_key
         provider_config["ingest_mode"] = args.memu_ingest_mode
 
+    manifest = build_retrieval_manifest(
+        run_id=run_id,
+        provider=provider,
+        provider_config=provider_config,
+        dataset_path=args.dataset,
+        dataset_name=dataset.name,
+        top_k=args.top_k,
+        limit=args.limit,
+        skip_ingest=args.skip_ingest,
+        fail_fast=args.fail_fast,
+        repo_dir=Path(__file__).resolve().parents[2],
+    )
+
     report = run_retrieval_benchmark(
         provider=provider,
         dataset=dataset,
@@ -96,6 +122,7 @@ def cmd_run_retrieval(args: argparse.Namespace) -> int:
         fail_fast=args.fail_fast,
         limit=args.limit,
         skip_ingest=args.skip_ingest,
+        manifest=manifest,
     )
 
     out = args.out or f"artifacts/{run_id}/retrieval-report.json"

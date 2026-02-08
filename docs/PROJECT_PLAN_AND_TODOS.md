@@ -35,6 +35,8 @@ Primary targets:
   - [x] LongMemEval
   - [x] ConvoMem
 - [x] CI baseline added (lint + tests + smoke path + artifact upload).
+- [x] Retrieval reports now embed run-manifest metadata (toolkit/git/dataset/provider/runtime).
+- [x] `prepare-dataset` now writes sidecar metadata (`*.meta.json`) with source URLs.
 
 ### Verified locally
 
@@ -70,12 +72,12 @@ Primary targets:
 
 ## P0 — Next work block (high priority)
 
-- [ ] Embed run manifest in retrieval reports:
-  - [ ] toolkit version
-  - [ ] git commit
-  - [ ] dataset source + conversion config
-  - [ ] provider adapter config (sanitized)
-  - [ ] runtime metadata (python/os)
+- [x] Embed run manifest in retrieval reports:
+  - [x] toolkit version
+  - [x] git commit
+  - [x] dataset source + conversion config
+  - [x] provider adapter config (sanitized)
+  - [x] runtime metadata (python/os)
 - [ ] Add schema validation for converted datasets and final reports.
 - [ ] Standardize error codes and failure categories in runner output.
 
