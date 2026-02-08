@@ -1,0 +1,30 @@
+[project]
+name = "openclaw-memory-bench"
+version = "0.1.0"
+description = "CLI benchmark toolkit for OpenClaw memory-layer plugins"
+readme = "README.md"
+requires-python = ">=3.13"
+license = { text = "MIT" }
+authors = [
+  { name = "phenomenoner" }
+]
+dependencies = []
+
+[project.scripts]
+openclaw-memory-bench = "openclaw_memory_bench.cli:main"
+
+[build-system]
+requires = ["hatchling>=1.24.0"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+  "pytest>=8.3.0",
+  "ruff>=0.6.0"
+]
+
+[tool.ruff]
+line-length = 100
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
