@@ -31,15 +31,37 @@ Public SaaS memory providers already have benchmark visibility. The OpenClaw com
 3. **Plugin neutrality** (same protocol for all adapters)
 4. **Transparent reporting** (JSON outputs + docs)
 
-## Quickstart (scaffold stage)
+## Quickstart (retrieval track MVP)
 
 ```bash
 uv sync
 uv run openclaw-memory-bench doctor
+
+# Generate manifest
 uv run openclaw-memory-bench plan --provider openclaw-mem --benchmark locomo
+
+# Run deterministic retrieval benchmark using example dataset
+uv run openclaw-memory-bench run-retrieval \
+  --provider openclaw-mem \
+  --dataset examples/mini_retrieval.json \
+  --top-k 5
 ```
 
-> Note: Adapter execution is currently scaffolded and under active development.
+The command writes a JSON report under `artifacts/<run-id>/retrieval-report.json` by default.
+
+For dataset schema, see `docs/dataset-format.md`.
+
+### Useful flags for `run-retrieval`
+
+- `--limit N` run first N questions
+- `--fail-fast` stop on first question failure
+- `--db-root <dir>` per-container sqlite storage root for `openclaw-mem`
+- `--openclaw-mem-cmd ...` override adapter command base when needed
+
+## Current implementation status
+
+- `openclaw-mem`: retrieval-track adapter implemented (MVP, CLI-driven)
+- `memu-engine`: adapter stub + integration plan documented
 
 ## Project layout
 

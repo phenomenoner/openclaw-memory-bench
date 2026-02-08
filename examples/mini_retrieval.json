@@ -1,0 +1,55 @@
+{
+  "name": "mini-retrieval-smoke",
+  "questions": [
+    {
+      "question_id": "q1",
+      "question": "What color does Alice prefer?",
+      "ground_truth": "Blue",
+      "question_type": "fact-recall",
+      "relevant_session_ids": ["s1"],
+      "sessions": [
+        {
+          "session_id": "s1",
+          "messages": [
+            { "role": "user", "content": "My favorite color is blue." },
+            { "role": "assistant", "content": "Got it, you like blue." }
+          ],
+          "metadata": { "topic": "preference" }
+        },
+        {
+          "session_id": "s2",
+          "messages": [
+            { "role": "user", "content": "I had sushi for lunch today." },
+            { "role": "assistant", "content": "Nice choice." }
+          ],
+          "metadata": { "topic": "meal" }
+        }
+      ]
+    },
+    {
+      "question_id": "q2",
+      "question": "What did Bob buy for his workstation?",
+      "ground_truth": "A mechanical keyboard",
+      "question_type": "fact-recall",
+      "relevant_session_ids": ["s3"],
+      "sessions": [
+        {
+          "session_id": "s3",
+          "messages": [
+            { "role": "user", "content": "I bought a mechanical keyboard for my workstation." },
+            { "role": "assistant", "content": "Great upgrade." }
+          ],
+          "metadata": { "topic": "shopping" }
+        },
+        {
+          "session_id": "s4",
+          "messages": [
+            { "role": "user", "content": "I need to renew my passport next month." },
+            { "role": "assistant", "content": "Set a reminder soon." }
+          ],
+          "metadata": { "topic": "admin" }
+        }
+      ]
+    }
+  ]
+}
