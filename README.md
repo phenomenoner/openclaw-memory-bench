@@ -45,11 +45,30 @@ uv run openclaw-memory-bench run-retrieval \
   --provider openclaw-mem \
   --dataset examples/mini_retrieval.json \
   --top-k 5
+
+# Prepare canonical dataset (download + convert)
+uv run openclaw-memory-bench prepare-dataset \
+  --benchmark longmemeval \
+  --limit 50 \
+  --out data/datasets/longmemeval-50.json
 ```
 
-The command writes a JSON report under `artifacts/<run-id>/retrieval-report.json` by default.
+The run command writes a JSON report under `artifacts/<run-id>/retrieval-report.json` by default.
 
 For dataset schema, see `docs/dataset-format.md`.
+
+### memu-engine (gateway mode)
+
+```bash
+uv run openclaw-memory-bench run-retrieval \
+  --provider memu-engine \
+  --dataset data/datasets/longmemeval-50.json \
+  --top-k 10 \
+  --skip-ingest \
+  --gateway-url http://127.0.0.1:18789
+```
+
+> For `memu-engine`, default ingest mode is `noop` (pre-ingested search). Use `--memu-ingest-mode memory_store` only if your memory slot exposes `memory_store`.
 
 ### Useful flags for `run-retrieval`
 
@@ -57,11 +76,15 @@ For dataset schema, see `docs/dataset-format.md`.
 - `--fail-fast` stop on first question failure
 - `--db-root <dir>` per-container sqlite storage root for `openclaw-mem`
 - `--openclaw-mem-cmd ...` override adapter command base when needed
+- `--skip-ingest` run search-only against existing memory state
+- `--gateway-url/--gateway-token` for gateway-backed providers (`memu-engine`)
+- `--memu-ingest-mode noop|memory_store` for memu ingestion strategy
 
 ## Current implementation status
 
 - `openclaw-mem`: retrieval-track adapter implemented (MVP, CLI-driven)
-- `memu-engine`: adapter stub + integration plan documented
+- `memu-engine`: gateway-backed adapter implemented for `memory_search` (ingest modes: `noop` / `memory_store`)
+- Canonical dataset conversion command available (`prepare-dataset`)
 
 ## Project layout
 

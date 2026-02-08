@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from .adapters import available_adapters
+from .converters import convert_benchmark, write_dataset
 from .dataset import load_retrieval_dataset
 from .runner import run_retrieval_benchmark, save_report
 
@@ -49,6 +50,19 @@ def cmd_plan(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_prepare_dataset(args: argparse.Namespace) -> int:
+    data = convert_benchmark(args.benchmark, limit=args.limit)
+    out = write_dataset(data, args.out)
+    payload = {
+        "ok": True,
+        "benchmark": args.benchmark,
+        "questions": len(data.get("questions", [])),
+        "out": str(out),
+    }
+    print(json.dumps(payload, ensure_ascii=False, indent=2))
+    return 0
+
+
 def cmd_run_retrieval(args: argparse.Namespace) -> int:
     provider = args.provider
     if provider not in available_adapters():
@@ -66,6 +80,13 @@ def cmd_run_retrieval(args: argparse.Namespace) -> int:
         if args.openclaw_mem_cmd:
             provider_config["command_base"] = args.openclaw_mem_cmd
 
+    if provider == "memu-engine":
+        provider_config["gateway_url"] = args.gateway_url
+        provider_config["gateway_token"] = args.gateway_token
+        provider_config["agent_id"] = args.agent_id
+        provider_config["session_key"] = args.session_key
+        provider_config["ingest_mode"] = args.memu_ingest_mode
+
     report = run_retrieval_benchmark(
         provider=provider,
         dataset=dataset,
@@ -74,6 +95,7 @@ def cmd_run_retrieval(args: argparse.Namespace) -> int:
         provider_config=provider_config,
         fail_fast=args.fail_fast,
         limit=args.limit,
+        skip_ingest=args.skip_ingest,
     )
 
     out = args.out or f"artifacts/{run_id}/retrieval-report.json"
@@ -110,6 +132,12 @@ def build_parser() -> argparse.ArgumentParser:
     plan.add_argument("--out", default="artifacts/run-manifest.json")
     plan.set_defaults(func=cmd_plan)
 
+    prep = sub.add_parser("prepare-dataset", help="Download and convert canonical benchmark dataset")
+    prep.add_argument("--benchmark", required=True, choices=["locomo", "longmemeval", "convomem"])
+    prep.add_argument("--limit", type=int, default=None, help="Limit number of converted questions")
+    prep.add_argument("--out", required=True, help="Output retrieval dataset JSON path")
+    prep.set_defaults(func=cmd_prepare_dataset)
+
     run = sub.add_parser("run-retrieval", help="Execute deterministic retrieval benchmark")
     run.add_argument("--provider", required=True, help="openclaw-mem | memu-engine")
     run.add_argument("--dataset", required=True, help="Path to retrieval dataset JSON")
@@ -134,7 +162,21 @@ def build_parser() -> argparse.ArgumentParser:
         help="(openclaw-mem) explicit command base override, e.g. openclaw-mem",
     )
     run.add_argument("--out", default=None, help="Output report path")
+    run.add_argument("--skip-ingest", action="store_true", help="Skip adapter ingest and search existing memory")
     run.add_argument("--fail-fast", action="store_true")
+
+    # memu-engine / gateway options
+    run.add_argument("--gateway-url", default=None, help="Gateway base URL (default from local config)")
+    run.add_argument("--gateway-token", default=None, help="Gateway token (default from env/config)")
+    run.add_argument("--agent-id", default="main", help="x-openclaw-agent-id header")
+    run.add_argument("--session-key", default="main", help="sessionKey for tools/invoke")
+    run.add_argument(
+        "--memu-ingest-mode",
+        default="noop",
+        choices=["noop", "memory_store"],
+        help="memu-engine ingest strategy",
+    )
+
     run.set_defaults(func=cmd_run_retrieval)
 
     return p

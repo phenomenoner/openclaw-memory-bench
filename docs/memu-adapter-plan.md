@@ -34,7 +34,16 @@ Pros:
 Cons:
 - may diverge from actual memory tool behavior used by agents
 
+## Status update (2026-02-08)
+
+Option A baseline has been implemented:
+- Adapter path: `src/openclaw_memory_bench/adapters/memu_engine.py`
+- Search: `memory_search` via Gateway `/tools/invoke`
+- Ingest modes:
+  - `noop` (default; pre-ingested search)
+  - `memory_store` (optional; requires memory slot to expose `memory_store`)
+
 ## Proposed v0 order
 
-1. Implement Option A first for ecosystem realism.
+1. Keep Option A as default for ecosystem realism.
 2. Add Option B only as optional diagnostic mode.

@@ -29,6 +29,7 @@ def run_retrieval_benchmark(
     provider_config: dict,
     fail_fast: bool = False,
     limit: int | None = None,
+    skip_ingest: bool = False,
 ) -> dict:
     adapters = available_adapters()
     if provider not in adapters:
@@ -55,8 +56,10 @@ def run_retrieval_benchmark(
 
         try:
             adapter.clear(container_tag)
-            ingest_result = adapter.ingest(q.sessions, container_tag)
-            adapter.await_indexing(ingest_result, container_tag)
+            ingest_result = {"ingest": "skipped"}
+            if not skip_ingest:
+                ingest_result = adapter.ingest(q.sessions, container_tag)
+                adapter.await_indexing(ingest_result, container_tag)
 
             t0 = time.perf_counter()
             hits = adapter.search(q.question, container_tag=container_tag, limit=top_k)
@@ -87,6 +90,8 @@ def run_retrieval_benchmark(
                     "relevant_session_ids": q.relevant_session_ids,
                     "retrieved_session_ids": retrieved_session_ids,
                     "retrieved_observation_ids": [h.id for h in hits],
+                    "retrieved_sources": [h.metadata.get("path") for h in hits if h.metadata.get("path")],
+                    "ingest_result": ingest_result,
                     "latency_ms": dt_ms,
                     "metrics": asdict(metrics),
                 }
@@ -108,6 +113,9 @@ def run_retrieval_benchmark(
         "dataset": dataset.name,
         "top_k": top_k,
         "created_at_utc": _now_utc(),
+        "config": {
+            "skip_ingest": skip_ingest,
+        },
         "summary": {
             "questions_total": len(questions),
             "questions_succeeded": len(results),
