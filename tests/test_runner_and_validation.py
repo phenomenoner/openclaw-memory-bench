@@ -41,6 +41,21 @@ class _TimeoutAdapter(_SuccessAdapter):
         raise subprocess.TimeoutExpired(cmd=["fake-cmd"], timeout=5)
 
 
+class _EchoSessionAdapter(_SuccessAdapter):
+    def search(self, query: str, container_tag: str, limit: int = 10):
+        del query, limit
+        # container_tag format: <run_id>:<question_id>
+        qid = container_tag.split(":", 1)[1]
+        return [
+            SearchHit(
+                id=qid,
+                content=f"answer for {qid}",
+                score=1.0,
+                metadata={"session_id": qid, "path": f"memory/session-{qid}.md"},
+            )
+        ]
+
+
 def _mini_dataset() -> RetrievalDataset:
     q = RetrievalQuestion(
         question_id="q1",
@@ -57,6 +72,29 @@ def _mini_dataset() -> RetrievalDataset:
         relevant_session_ids=["s1"],
     )
     return RetrievalDataset(name="mini", questions=[q])
+
+
+def _multi_dataset(n: int = 6) -> RetrievalDataset:
+    questions: list[RetrievalQuestion] = []
+    for i in range(n):
+        qid = f"s{i}"
+        questions.append(
+            RetrievalQuestion(
+                question_id=qid,
+                question=f"where {i}?",
+                ground_truth=qid,
+                question_type="fact",
+                sessions=[
+                    Session(
+                        session_id=qid,
+                        messages=[SessionMessage(role="user", content=f"message {i}")],
+                        metadata={},
+                    )
+                ],
+                relevant_session_ids=[qid],
+            )
+        )
+    return RetrievalDataset(name="multi", questions=questions)
 
 
 def test_run_retrieval_success_includes_failure_breakdown(monkeypatch) -> None:
@@ -137,3 +175,52 @@ def test_validate_dataset_payload_rejects_unknown_relevant_session_id() -> None:
 
     with pytest.raises(SchemaValidationError):
         validate_dataset_payload(bad)
+
+
+def test_run_retrieval_sample_subset_is_seeded_and_deterministic(monkeypatch) -> None:
+    import openclaw_memory_bench.runner as runner
+
+    monkeypatch.setattr(runner, "available_adapters", lambda: {"fake": _EchoSessionAdapter})
+
+    kwargs = dict(
+        provider="fake",
+        dataset=_multi_dataset(8),
+        top_k=5,
+        provider_config={},
+        skip_ingest=False,
+        fail_fast=False,
+        limit=None,
+        sample_size=3,
+        sample_seed=7,
+        manifest={"schema": "test"},
+    )
+
+    r1 = run_retrieval_benchmark(run_id="run-a", **kwargs)
+    r2 = run_retrieval_benchmark(run_id="run-b", **kwargs)
+
+    qids1 = [x["question_id"] for x in r1["results"]]
+    qids2 = [x["question_id"] for x in r2["results"]]
+    assert qids1 == qids2
+    assert len(qids1) == 3
+    assert r1["summary"]["questions_total"] == 3
+
+
+def test_run_retrieval_sample_size_too_large_raises(monkeypatch) -> None:
+    import openclaw_memory_bench.runner as runner
+
+    monkeypatch.setattr(runner, "available_adapters", lambda: {"fake": _EchoSessionAdapter})
+
+    with pytest.raises(ValueError):
+        run_retrieval_benchmark(
+            provider="fake",
+            dataset=_multi_dataset(2),
+            top_k=5,
+            run_id="run-bad-sample",
+            provider_config={},
+            skip_ingest=False,
+            fail_fast=False,
+            limit=None,
+            sample_size=3,
+            sample_seed=1,
+            manifest={"schema": "test"},
+        )

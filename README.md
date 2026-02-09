@@ -85,6 +85,7 @@ uv run openclaw-memory-bench run-retrieval \
 ### Useful flags for `run-retrieval`
 
 - `--limit N` run first N questions
+- `--sample-size N --sample-seed S` deterministic seeded subset sampling
 - `--fail-fast` stop on first question failure
 - `--db-root <dir>` per-container sqlite storage root for `openclaw-mem`
 - `--openclaw-mem-cmd ...` override adapter command base when needed

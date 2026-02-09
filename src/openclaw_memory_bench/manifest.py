@@ -81,6 +81,8 @@ def build_retrieval_manifest(
     skip_ingest: bool,
     fail_fast: bool,
     repo_dir: str | Path,
+    sample_size: int | None = None,
+    sample_seed: int | None = None,
 ) -> dict[str, Any]:
     p = Path(dataset_path)
     dataset_meta = read_dataset_meta(p)
@@ -108,6 +110,8 @@ def build_retrieval_manifest(
         "parameters": {
             "top_k": top_k,
             "limit": limit,
+            "sample_size": sample_size,
+            "sample_seed": sample_seed,
             "skip_ingest": skip_ingest,
             "fail_fast": fail_fast,
         },

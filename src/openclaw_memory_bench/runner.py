@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import random
 import statistics
 import subprocess
 import time
@@ -103,6 +104,34 @@ def _failure_breakdown(failures: list[dict]) -> dict:
     }
 
 
+def _select_questions(
+    questions: list,
+    *,
+    limit: int | None,
+    sample_size: int | None,
+    sample_seed: int | None,
+) -> list:
+    selected = list(questions)
+
+    if sample_size is not None:
+        if sample_size <= 0:
+            raise ValueError("sample_size must be > 0")
+        if sample_size > len(selected):
+            raise ValueError(
+                f"sample_size={sample_size} exceeds available questions={len(selected)}"
+            )
+        rng = random.Random(0 if sample_seed is None else sample_seed)
+        indices = sorted(rng.sample(range(len(selected)), sample_size))
+        selected = [selected[i] for i in indices]
+
+    if limit is not None:
+        if limit < 0:
+            raise ValueError("limit must be >= 0")
+        selected = selected[:limit]
+
+    return selected
+
+
 def run_retrieval_benchmark(
     *,
     provider: str,
@@ -112,6 +141,8 @@ def run_retrieval_benchmark(
     provider_config: dict,
     fail_fast: bool = False,
     limit: int | None = None,
+    sample_size: int | None = None,
+    sample_seed: int | None = None,
     skip_ingest: bool = False,
     manifest: dict | None = None,
 ) -> dict:
@@ -122,7 +153,12 @@ def run_retrieval_benchmark(
     adapter = adapters[provider]()
     adapter.initialize(provider_config)
 
-    questions = dataset.questions[:limit] if limit else dataset.questions
+    questions = _select_questions(
+        dataset.questions,
+        limit=limit,
+        sample_size=sample_size,
+        sample_seed=sample_seed,
+    )
 
     latencies_ms: list[float] = []
     hit_scores: list[float] = []
@@ -206,6 +242,8 @@ def run_retrieval_benchmark(
         "created_at_utc": _now_utc(),
         "config": {
             "skip_ingest": skip_ingest,
+            "sample_size": sample_size,
+            "sample_seed": sample_seed,
         },
         "manifest": manifest,
         "summary": {

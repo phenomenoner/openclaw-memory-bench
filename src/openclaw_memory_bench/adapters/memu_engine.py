@@ -2,12 +2,18 @@ from __future__ import annotations
 
 import json
 import re
+from pathlib import Path
 from typing import Any
 
 from openclaw_memory_bench.gateway_client import invoke_tool
 from openclaw_memory_bench.protocol import SearchHit, Session
 
-_SESSION_RE = re.compile(r"([0-9a-f]{8,}|[A-Za-z0-9_-]+)\.jsonl", re.IGNORECASE)
+_SESSION_MARKER_PATTERNS = [
+    re.compile(r"\[session:([A-Za-z0-9_.:-]+)\]", re.IGNORECASE),
+    re.compile(r"session[_\s-]?id\s*[:=]\s*([A-Za-z0-9_.:-]+)", re.IGNORECASE),
+]
+_FILE_TOKEN_RE = re.compile(r"([A-Za-z0-9_.-]+)\.(jsonl|json|md)", re.IGNORECASE)
+_LINE_SUFFIX_RE = re.compile(r":\d+(?::\d+)?$")
 
 
 class MemuEngineAdapter:
@@ -95,22 +101,58 @@ class MemuEngineAdapter:
         return []
 
     @staticmethod
-    def _extract_session_id(path: str | None, snippet: str | None) -> str | None:
-        for txt in [path or "", snippet or ""]:
-            m = _SESSION_RE.search(txt)
-            if m:
-                return m.group(1)
+    def _normalize_sid(candidate: str | None) -> str | None:
+        if not candidate:
+            return None
+        sid = candidate.strip().strip("\"'[](){}<>.,;:")
+        return sid or None
 
-            marker = "[session:"
-            idx = txt.find(marker)
-            if idx >= 0:
-                end = txt.find("]", idx + len(marker))
-                if end > idx:
-                    sid = txt[idx + len(marker) : end].strip()
-                    if sid:
-                        return sid
+    @staticmethod
+    def _extract_sid_from_path(path: str | None) -> str | None:
+        if not path:
+            return None
+
+        no_line = _LINE_SUFFIX_RE.sub("", path)
+        name = Path(no_line).name
+        m = _FILE_TOKEN_RE.search(name)
+        if not m:
+            return None
+
+        stem = m.group(1)
+        if stem.startswith("session-"):
+            stem = stem[len("session-") :]
+
+        return MemuEngineAdapter._normalize_sid(stem)
+
+    @staticmethod
+    def _extract_sid_from_text(text: str | None) -> str | None:
+        if not text:
+            return None
+
+        for pat in _SESSION_MARKER_PATTERNS:
+            m = pat.search(text)
+            if m:
+                sid = MemuEngineAdapter._normalize_sid(m.group(1))
+                if sid:
+                    return sid
+
+        for m in _FILE_TOKEN_RE.finditer(text):
+            stem = m.group(1)
+            if stem.startswith("session-"):
+                stem = stem[len("session-") :]
+            sid = MemuEngineAdapter._normalize_sid(stem)
+            if sid:
+                return sid
 
         return None
+
+    @staticmethod
+    def _extract_session_id(path: str | None, snippet: str | None) -> str | None:
+        sid = MemuEngineAdapter._extract_sid_from_path(path)
+        if sid:
+            return sid
+
+        return MemuEngineAdapter._extract_sid_from_text(snippet)
 
     def search(self, query: str, container_tag: str, limit: int = 10) -> list[SearchHit]:
         result = invoke_tool(

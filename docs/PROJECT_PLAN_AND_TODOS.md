@@ -88,8 +88,8 @@ Primary targets:
 - [ ] Add canonical "recipe" docs:
   - [ ] openclaw-mem baseline run recipe
   - [ ] memu-engine baseline run recipe
-- [ ] Improve `memu-engine` session-id extraction robustness from citations/snippets.
-- [ ] Add deterministic sample-splitting controls (seeded subsets).
+- [x] Improve `memu-engine` session-id extraction robustness from citations/snippets.
+- [x] Add deterministic sample-splitting controls (seeded subsets).
 
 ## P2 — Nice to have
 

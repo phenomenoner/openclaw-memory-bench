@@ -115,6 +115,8 @@ def cmd_run_retrieval(args: argparse.Namespace) -> int:
         dataset_name=dataset.name,
         top_k=args.top_k,
         limit=args.limit,
+        sample_size=args.sample_size,
+        sample_seed=args.sample_seed,
         skip_ingest=args.skip_ingest,
         fail_fast=args.fail_fast,
         repo_dir=Path(__file__).resolve().parents[2],
@@ -128,6 +130,8 @@ def cmd_run_retrieval(args: argparse.Namespace) -> int:
         provider_config=provider_config,
         fail_fast=args.fail_fast,
         limit=args.limit,
+        sample_size=args.sample_size,
+        sample_seed=args.sample_seed,
         skip_ingest=args.skip_ingest,
         manifest=manifest,
     )
@@ -178,6 +182,18 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--top-k", type=int, default=10)
     run.add_argument("--run-id", default=None)
     run.add_argument("--limit", type=int, default=None)
+    run.add_argument(
+        "--sample-size",
+        type=int,
+        default=None,
+        help="Deterministically sample N questions before applying --limit",
+    )
+    run.add_argument(
+        "--sample-seed",
+        type=int,
+        default=None,
+        help="Seed for deterministic question sampling (default 0 when --sample-size is set)",
+    )
     run.add_argument("--db-path", default=None, help="(openclaw-mem) fixed DB path")
     run.add_argument(
         "--db-root",

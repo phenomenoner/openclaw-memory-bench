@@ -38,6 +38,8 @@ def test_build_retrieval_manifest_includes_dataset_meta(tmp_path: Path) -> None:
         dataset_name="mini",
         top_k=5,
         limit=10,
+        sample_size=7,
+        sample_seed=99,
         skip_ingest=True,
         fail_fast=False,
         repo_dir=tmp_path,
@@ -46,3 +48,5 @@ def test_build_retrieval_manifest_includes_dataset_meta(tmp_path: Path) -> None:
     assert manifest["dataset"]["meta"]["benchmark"] == "longmemeval"
     assert manifest["provider"]["config"]["gateway_token"] == "***REDACTED***"
     assert manifest["dataset"]["sha256"]
+    assert manifest["parameters"]["sample_size"] == 7
+    assert manifest["parameters"]["sample_seed"] == 99
