@@ -11,6 +11,19 @@ This summary focuses on currently interpretable runs for:
 
 `memu-engine` is intentionally excluded from this preliminary public-facing note until adapter mode/stability is finalized.
 
+## Interpretation guardrail: provider roles are not equivalent architecture classes
+
+- `openclaw-mem` in this benchmark currently means a **standalone sidecar-engine run** (benchmark-managed sqlite + `openclaw-mem` CLI ingest/search).
+- `memory-core` and `memory-lancedb` are evaluated as **backend/canonical-memory paths**.
+- Therefore, current numbers should be read as **adapter/provider-level snapshots**, not as a complete “best production stack” ranking.
+
+### Not included yet (important)
+
+- We have **not** finished a full matrix comparing combined stacks such as:
+  - `openclaw-mem + memory-core`
+  - `openclaw-mem + memory-lancedb`
+- So current `openclaw-mem` numbers are **not** “best-of-two backend combination” numbers.
+
 ## Included artifacts
 
 - Phase A baseline (LongMemEval 100q):
@@ -44,11 +57,12 @@ Across both smoke runs:
 - `openclaw-mem`: **4/4 succeeded**, hit@k **1.0**, mrr **0.875**, ndcg@k **0.9077**, p50 **209.99 ms**
 - `memory-core`: **3/4 succeeded**, hit@k **1.0** (on succeeded subset), mrr **1.0**, ndcg@k **1.0**, p50 **21287.68 ms**
 
-## Preliminary interpretation
+## Preliminary interpretation (within currently tested provider modes)
 
 - `openclaw-mem` currently shows the strongest **speed + stability** profile in these runs.
 - `memory-core` shows high potential quality on small subsets but is currently blocked by ingest/index timeout behavior for sustained runs.
 - `memory-lancedb` is currently stable in smoke runs, with slower latency and lower retrieval quality than `openclaw-mem` in this snapshot.
+- These points do **not** yet answer which **combined deployment stack** is best overall.
 
 ## Known limitations
 

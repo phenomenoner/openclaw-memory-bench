@@ -24,6 +24,15 @@ We wanted a neutral way to compare memory-layer behavior in OpenClaw with:
 - latency rollups (p50/p95)
 - reproducible artifacts + manifests (dataset hash, runtime metadata, config shape)
 
+## Interpretation guardrail (important)
+
+Current snapshots compare provider adapters in their current benchmark modes:
+
+- `openclaw-mem` here = standalone sidecar-engine run in this harness
+- `memory-core` / `memory-lancedb` = backend/canonical-memory paths
+
+So this is **not yet** a complete combined-stack ranking (for example, `openclaw-mem + memory-core` vs `openclaw-mem + memory-lancedb`).
+
 ## Preliminary snapshot
 
 From current runs:

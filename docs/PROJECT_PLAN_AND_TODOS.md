@@ -93,6 +93,10 @@ Primary targets:
 - [ ] Add canonical "recipe" docs:
   - [ ] openclaw-mem baseline run recipe
   - [ ] memu-engine baseline run recipe
+- [ ] Add explicit **comparison-mode matrix** docs/runs:
+  - [ ] standalone sidecar runs
+  - [ ] standalone backend runs
+  - [ ] sidecar + backend combined stack runs (to avoid interpretation ambiguity)
 - [x] Improve `memu-engine` session-id extraction robustness from citations/snippets.
 - [x] Add deterministic sample-splitting controls (seeded subsets).
 

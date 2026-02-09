@@ -74,6 +74,16 @@ For dataset schema, see `docs/dataset-format.md`.
 
 See `PRELIMINARY_RESULTS.md` for currently available early comparison artifacts and caveats.
 
+## Provider roles and interpretation guardrails (important)
+
+To avoid misleading comparisons, benchmark providers should be read as follows:
+
+- `openclaw-mem` provider in this repo = **standalone sidecar engine run** (`openclaw-mem` CLI ingest/search on benchmark-managed sqlite files).
+  - It is **not automatically combined** with `memory-core` or `memory-lancedb` in current leaderboard numbers.
+- `memory-core` provider = OpenClaw built-in backend (`openclaw memory index/search`) under an isolated profile.
+- `memory-lancedb` provider = canonical memory tool path (`memory_store` / `memory_recall` / `memory_forget`) via Gateway invoke.
+
+Current reports are primarily **independent-provider comparisons**. A full **combination matrix** (e.g., sidecar + backend pairings) is tracked as follow-up work.
 
 ### memory-lancedb (canonical memory tools)
 
