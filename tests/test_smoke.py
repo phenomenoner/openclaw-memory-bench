@@ -6,3 +6,4 @@ def test_adapters_registered() -> None:
     assert "openclaw-mem" in names
     assert "memu-engine" in names
     assert "memory-core" in names
+    assert "memory-lancedb" in names

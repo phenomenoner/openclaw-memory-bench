@@ -80,6 +80,7 @@ def build_retrieval_manifest(
     limit: int | None,
     skip_ingest: bool,
     fail_fast: bool,
+    preindex_once: bool = False,
     repo_dir: str | Path,
     sample_size: int | None = None,
     sample_seed: int | None = None,
@@ -113,6 +114,7 @@ def build_retrieval_manifest(
             "sample_size": sample_size,
             "sample_seed": sample_seed,
             "skip_ingest": skip_ingest,
+            "preindex_once": preindex_once,
             "fail_fast": fail_fast,
         },
         "runtime": {

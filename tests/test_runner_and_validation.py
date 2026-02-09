@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import subprocess
 
 import pytest
@@ -52,6 +53,29 @@ class _EchoSessionAdapter(_SuccessAdapter):
                 content=f"answer for {qid}",
                 score=1.0,
                 metadata={"session_id": qid, "path": f"memory/session-{qid}.md"},
+            )
+        ]
+
+
+class _PreindexAdapter(_SuccessAdapter):
+    ingest_calls = 0
+
+    def ingest(self, sessions, container_tag: str) -> dict:
+        type(self).ingest_calls += 1
+        self.sessions = list(sessions)
+        self.container_tag = container_tag
+        return {"container_tag": container_tag, "sessions": len(sessions)}
+
+    def search(self, query: str, container_tag: str, limit: int = 10):
+        del limit, container_tag
+        m = re.search(r"(\d+)", query)
+        sid = f"s{m.group(1)}" if m else "s0"
+        return [
+            SearchHit(
+                id=sid,
+                content=f"answer for {sid}",
+                score=1.0,
+                metadata={"session_id": sid, "path": f"memory/session-{sid}.md"},
             )
         ]
 
@@ -224,3 +248,30 @@ def test_run_retrieval_sample_size_too_large_raises(monkeypatch) -> None:
             sample_seed=1,
             manifest={"schema": "test"},
         )
+
+
+def test_preindex_once_ingests_once(monkeypatch) -> None:
+    import openclaw_memory_bench.runner as runner
+
+    _PreindexAdapter.ingest_calls = 0
+    monkeypatch.setattr(runner, "available_adapters", lambda: {"fake": _PreindexAdapter})
+
+    report = run_retrieval_benchmark(
+        provider="fake",
+        dataset=_multi_dataset(5),
+        top_k=5,
+        run_id="run-preindex",
+        provider_config={},
+        skip_ingest=False,
+        preindex_once=True,
+        fail_fast=False,
+        limit=3,
+        sample_size=None,
+        sample_seed=None,
+        manifest={"schema": "test"},
+    )
+
+    assert report["summary"]["questions_failed"] == 0
+    assert report["summary"]["questions_total"] == 3
+    assert _PreindexAdapter.ingest_calls == 1
+    assert report["config"]["preindex_once"] is True

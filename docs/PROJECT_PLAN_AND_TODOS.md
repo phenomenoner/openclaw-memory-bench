@@ -29,6 +29,7 @@ Primary targets:
   - [x] Retrieval runner + JSON report output
   - [x] `run-retrieval` command
 - [x] `openclaw-mem` adapter implemented (CLI-driven) with per-container DB isolation.
+- [x] `memory-lancedb` adapter implemented via canonical memory tools (`memory_store`/`memory_recall`/`memory_forget`).
 - [x] `memu-engine` adapter implemented via Gateway `tools/invoke` baseline (`memory_search`, optional `memory_store`).
 - [x] Canonical dataset conversion command implemented (`prepare-dataset`) for:
   - [x] LoCoMo
@@ -38,6 +39,10 @@ Primary targets:
 - [x] Retrieval reports now embed run-manifest metadata (toolkit/git/dataset/provider/runtime).
 - [x] `prepare-dataset` now writes sidecar metadata (`*.meta.json`) with source URLs.
 - [x] Phase A baseline profile + orchestrator script added for two-plugin runs (`configs/run-profiles/two-plugin-baseline.json`, `scripts/run_two_plugin_baseline.sh`).
+- [x] Comprehensive triplet orchestrator added (`scripts/run_memory_triplet_comprehensive.sh`).
+- [x] Sidecar compare orchestrator added (`scripts/run_memory_core_vs_openclaw_mem.sh`).
+- [x] Preindex-once runner mode added (`--preindex-once` / `--memory-core-preindex-once`) for timeout diagnosis.
+- [x] Preliminary publication pack drafted (`PRELIMINARY_RESULTS.md`, discussion draft, public-release checklist).
 
 ### Verified locally
 

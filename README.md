@@ -5,6 +5,7 @@ CLI-first benchmark toolkit for **OpenClaw memory-layer plugins**.
 This project is designed to provide a reproducible, non-interactive evaluation workflow for memory plugins such as:
 - `openclaw-mem`
 - `memory-core` (OpenClaw built-in memory)
+- `memory-lancedb`
 - `memu-engine-for-OpenClaw`
 - future OpenClaw memory-layer plugins
 
@@ -69,6 +70,23 @@ Reports now embed a reproducibility manifest (`report.manifest`) containing tool
 
 For dataset schema, see `docs/dataset-format.md`.
 
+## Preliminary results snapshot
+
+See `PRELIMINARY_RESULTS.md` for currently available early comparison artifacts and caveats.
+
+
+### memory-lancedb (canonical memory tools)
+
+```bash
+uv run openclaw-memory-bench run-retrieval \
+  --provider memory-lancedb \
+  --dataset data/datasets/longmemeval-50.json \
+  --top-k 10 \
+  --session-key main
+```
+
+> This adapter uses `memory_store` + `memory_recall` + `memory_forget` via Gateway invoke.
+
 ### memu-engine (gateway mode)
 
 ```bash
@@ -91,8 +109,12 @@ uv run openclaw-memory-bench run-retrieval \
 - `--openclaw-mem-cmd ...` override adapter command base when needed
 - `--memory-core-profile <name>` isolated OpenClaw profile for `memory-core`
 - `--skip-ingest` run search-only against existing memory state
-- `--gateway-url/--gateway-token` for gateway-backed providers (`memu-engine`)
+- `--preindex-once` ingest/index selected dataset once, then run per-question search
+- `--gateway-url/--gateway-token` for gateway-backed providers (`memu-engine`, `memory-lancedb`)
 - `--memu-ingest-mode noop|memory_store` for memu ingestion strategy
+- `--lancedb-recall-limit-factor N` candidate pool multiplier before container filtering
+- `--memory-core-index-retries N` + `--memory-core-timeout-sec N` for timeout resilience
+- `--memory-core-max-messages-per-session`, `--memory-core-max-message-chars`, `--memory-core-max-chars-per-session` for long-session ingest stabilization
 
 ## One-shot two-plugin baseline runner (Phase A)
 
@@ -115,10 +137,23 @@ scripts/run_memory_core_vs_openclaw_mem.sh \
 Artifacts are written under `artifacts/sidecar-compare/<run-group>/`.
 This path is isolated from the main OpenClaw system via an independent memory-core profile (`membench-memory-core`) and per-run openclaw-mem sqlite roots.
 
+## One-shot comprehensive triplet (memory-core, memory-lancedb, openclaw-mem)
+
+```bash
+scripts/run_memory_triplet_comprehensive.sh \
+  --benchmark longmemeval \
+  --dataset-limit 100 \
+  --question-limit 100 \
+  --top-k 10
+```
+
+Artifacts are written under `artifacts/comprehensive-triplet/<run-group>/`.
+
 ## Current implementation status
 
 - `openclaw-mem`: retrieval-track adapter implemented (MVP, CLI-driven)
 - `memory-core`: retrieval-track adapter implemented (isolated `--profile` mode)
+- `memory-lancedb`: gateway-backed adapter implemented for canonical memory tools (`memory_store`/`memory_recall`/`memory_forget`)
 - `memu-engine`: gateway-backed adapter implemented for `memory_search` (ingest modes: `noop` / `memory_store`)
 - Canonical dataset conversion command available (`prepare-dataset`)
 

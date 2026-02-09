@@ -13,6 +13,7 @@ from pathlib import Path
 from .adapters import available_adapters
 from .dataset import RetrievalDataset
 from .metrics import percentile_ms, score_retrieval
+from .protocol import Session
 from .validation import validate_retrieval_report_payload
 
 
@@ -132,6 +133,19 @@ def _select_questions(
     return selected
 
 
+def _unique_sessions(questions: list) -> list[Session]:
+    seen: set[str] = set()
+    out: list[Session] = []
+    for q in questions:
+        for s in q.sessions:
+            sid = str(s.session_id)
+            if sid in seen:
+                continue
+            seen.add(sid)
+            out.append(s)
+    return out
+
+
 def run_retrieval_benchmark(
     *,
     provider: str,
@@ -144,6 +158,7 @@ def run_retrieval_benchmark(
     sample_size: int | None = None,
     sample_seed: int | None = None,
     skip_ingest: bool = False,
+    preindex_once: bool = False,
     manifest: dict | None = None,
 ) -> dict:
     adapters = available_adapters()
@@ -170,21 +185,48 @@ def run_retrieval_benchmark(
     results: list[dict] = []
     failures: list[dict] = []
 
+    preindex_tag = f"{run_id}:GLOBAL"
+    preindex_result: dict | None = None
+
+    if preindex_once and not skip_ingest:
+        try:
+            adapter.clear(preindex_tag)
+            all_sessions = _unique_sessions(questions)
+            preindex_result = adapter.ingest(all_sessions, preindex_tag)
+            adapter.await_indexing(preindex_result, preindex_tag)
+        except Exception as e:
+            err_base = _classify_failure(e, phase="preindex")
+            for q in questions:
+                failures.append({"question_id": q.question_id, **err_base})
+            print(f"  ! preindex failed ({err_base['error_code']}): {e}")
+
     for idx, q in enumerate(questions, start=1):
-        container_tag = f"{run_id}:{q.question_id}"
+        container_tag = preindex_tag if preindex_once else f"{run_id}:{q.question_id}"
         print(f"[{idx}/{len(questions)}] {q.question_id} :: ingest/search")
+
+        if any(f.get("question_id") == q.question_id for f in failures):
+            if fail_fast:
+                break
+            continue
 
         phase = "clear"
         try:
-            adapter.clear(container_tag)
-
             ingest_result = {"ingest": "skipped"}
-            if not skip_ingest:
-                phase = "ingest"
-                ingest_result = adapter.ingest(q.sessions, container_tag)
 
-                phase = "await_indexing"
-                adapter.await_indexing(ingest_result, container_tag)
+            if preindex_once:
+                ingest_result = {
+                    "ingest": "preindexed",
+                    "container_tag": preindex_tag,
+                    "global_ingest_result": preindex_result,
+                }
+            else:
+                adapter.clear(container_tag)
+                if not skip_ingest:
+                    phase = "ingest"
+                    ingest_result = adapter.ingest(q.sessions, container_tag)
+
+                    phase = "await_indexing"
+                    adapter.await_indexing(ingest_result, container_tag)
 
             phase = "search"
             t0 = time.perf_counter()
@@ -232,6 +274,18 @@ def run_retrieval_benchmark(
             print(f"  ! failed ({err['error_code']} @ {phase}): {e}")
             if fail_fast:
                 break
+        finally:
+            if not preindex_once:
+                try:
+                    adapter.clear(container_tag)
+                except Exception as cleanup_err:
+                    print(f"  ! cleanup warning ({q.question_id}): {cleanup_err}")
+
+    if preindex_once:
+        try:
+            adapter.clear(preindex_tag)
+        except Exception as cleanup_err:
+            print(f"  ! cleanup warning (preindex): {cleanup_err}")
 
     report = {
         "schema": "openclaw-memory-bench/retrieval-report/v0.2",
@@ -242,6 +296,7 @@ def run_retrieval_benchmark(
         "created_at_utc": _now_utc(),
         "config": {
             "skip_ingest": skip_ingest,
+            "preindex_once": preindex_once,
             "sample_size": sample_size,
             "sample_seed": sample_seed,
         },

@@ -106,6 +106,19 @@ def cmd_run_retrieval(args: argparse.Namespace) -> int:
         provider_config["profile"] = args.memory_core_profile
         provider_config["agent_id"] = args.memory_core_agent
         provider_config["timeout_sec"] = args.memory_core_timeout_sec
+        provider_config["force_reindex"] = args.memory_core_force_reindex
+        provider_config["index_retries"] = args.memory_core_index_retries
+        provider_config["search_limit_factor"] = args.memory_core_search_limit_factor
+        provider_config["max_messages_per_session"] = args.memory_core_max_messages_per_session
+        provider_config["max_message_chars"] = args.memory_core_max_message_chars
+        provider_config["max_chars_per_session"] = args.memory_core_max_chars_per_session
+
+    if provider == "memory-lancedb":
+        provider_config["gateway_url"] = args.gateway_url
+        provider_config["gateway_token"] = args.gateway_token
+        provider_config["agent_id"] = args.agent_id
+        provider_config["session_key"] = args.session_key
+        provider_config["recall_limit_factor"] = args.lancedb_recall_limit_factor
 
     manifest = build_retrieval_manifest(
         run_id=run_id,
@@ -118,6 +131,7 @@ def cmd_run_retrieval(args: argparse.Namespace) -> int:
         sample_size=args.sample_size,
         sample_seed=args.sample_seed,
         skip_ingest=args.skip_ingest,
+        preindex_once=args.preindex_once,
         fail_fast=args.fail_fast,
         repo_dir=Path(__file__).resolve().parents[2],
     )
@@ -133,6 +147,7 @@ def cmd_run_retrieval(args: argparse.Namespace) -> int:
         sample_size=args.sample_size,
         sample_seed=args.sample_seed,
         skip_ingest=args.skip_ingest,
+        preindex_once=args.preindex_once,
         manifest=manifest,
     )
 
@@ -162,7 +177,11 @@ def build_parser() -> argparse.ArgumentParser:
     doctor.set_defaults(func=cmd_doctor)
 
     plan = sub.add_parser("plan", help="Generate reproducible run manifest")
-    plan.add_argument("--provider", required=True, help="openclaw-mem | memu-engine | memory-core")
+    plan.add_argument(
+        "--provider",
+        required=True,
+        help="openclaw-mem | memu-engine | memory-core | memory-lancedb",
+    )
     plan.add_argument("--benchmark", required=True, help="locomo | longmemeval | convomem")
     plan.add_argument("--track", default="retrieval", choices=["retrieval", "e2e"])
     plan.add_argument("--limit", type=int, default=50)
@@ -177,7 +196,11 @@ def build_parser() -> argparse.ArgumentParser:
     prep.set_defaults(func=cmd_prepare_dataset)
 
     run = sub.add_parser("run-retrieval", help="Execute deterministic retrieval benchmark")
-    run.add_argument("--provider", required=True, help="openclaw-mem | memu-engine | memory-core")
+    run.add_argument(
+        "--provider",
+        required=True,
+        help="openclaw-mem | memu-engine | memory-core | memory-lancedb",
+    )
     run.add_argument("--dataset", required=True, help="Path to retrieval dataset JSON")
     run.add_argument("--top-k", type=int, default=10)
     run.add_argument("--run-id", default=None)
@@ -213,6 +236,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     run.add_argument("--out", default=None, help="Output report path")
     run.add_argument("--skip-ingest", action="store_true", help="Skip adapter ingest and search existing memory")
+    run.add_argument(
+        "--preindex-once",
+        action="store_true",
+        help="Ingest/index selected dataset once for all questions, then run per-question search only",
+    )
     run.add_argument("--fail-fast", action="store_true")
 
     # memory-core options
@@ -226,7 +254,42 @@ def build_parser() -> argparse.ArgumentParser:
         "--memory-core-timeout-sec",
         type=int,
         default=120,
-        help="(memory-core) command timeout in seconds",
+        help="(memory-core) base command timeout in seconds",
+    )
+    run.add_argument(
+        "--memory-core-force-reindex",
+        action="store_true",
+        help="(memory-core) force full reindex each ingest (slower)",
+    )
+    run.add_argument(
+        "--memory-core-index-retries",
+        type=int,
+        default=1,
+        help="(memory-core) reindex retry count on timeout/transient failures",
+    )
+    run.add_argument(
+        "--memory-core-search-limit-factor",
+        type=int,
+        default=8,
+        help="(memory-core) multiply top-k for candidate pool before container filtering",
+    )
+    run.add_argument(
+        "--memory-core-max-messages-per-session",
+        type=int,
+        default=80,
+        help="(memory-core) cap turns ingested per session (head+tail strategy)",
+    )
+    run.add_argument(
+        "--memory-core-max-message-chars",
+        type=int,
+        default=800,
+        help="(memory-core) cap chars per message during ingest",
+    )
+    run.add_argument(
+        "--memory-core-max-chars-per-session",
+        type=int,
+        default=12000,
+        help="(memory-core) total char budget per session markdown",
     )
 
     # memu-engine / gateway options
@@ -239,6 +302,12 @@ def build_parser() -> argparse.ArgumentParser:
         default="noop",
         choices=["noop", "memory_store"],
         help="memu-engine ingest strategy",
+    )
+    run.add_argument(
+        "--lancedb-recall-limit-factor",
+        type=int,
+        default=10,
+        help="(memory-lancedb) multiply top-k to set memory_recall candidate pool before container filter",
     )
 
     run.set_defaults(func=cmd_run_retrieval)
