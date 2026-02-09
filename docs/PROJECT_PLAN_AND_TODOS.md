@@ -1,6 +1,6 @@
 # OpenClaw Memory Bench — Project Plan & TODOs
 
-Last updated: 2026-02-08
+Last updated: 2026-02-09
 
 ## 1) Mission
 
@@ -79,8 +79,8 @@ Primary targets:
   - [x] dataset source + conversion config
   - [x] provider adapter config (sanitized)
   - [x] runtime metadata (python/os)
-- [ ] Add schema validation for converted datasets and final reports.
-- [ ] Standardize error codes and failure categories in runner output.
+- [x] Add schema validation for converted datasets and final reports.
+- [x] Standardize error codes and failure categories in runner output.
 
 ## P1 — Important
 

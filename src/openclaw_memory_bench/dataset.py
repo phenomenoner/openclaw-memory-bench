@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .protocol import Session, SessionMessage
+from .validation import validate_dataset_payload
 
 
 @dataclass
@@ -53,6 +54,11 @@ def load_retrieval_dataset(path: str | Path) -> RetrievalDataset:
         raise FileNotFoundError(f"Dataset file not found: {p}")
 
     raw = json.loads(p.read_text(encoding="utf-8"))
+    if not isinstance(raw, dict):
+        raise ValueError("dataset root must be an object")
+
+    validate_dataset_payload(raw)
+
     name = str(raw.get("name") or p.stem)
 
     raw_questions = raw.get("questions")

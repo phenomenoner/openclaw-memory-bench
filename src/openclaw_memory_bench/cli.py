@@ -11,6 +11,7 @@ from .converters import benchmark_sources, convert_benchmark, write_dataset
 from .dataset import load_retrieval_dataset
 from .manifest import build_retrieval_manifest
 from .runner import run_retrieval_benchmark, save_report
+from .validation import validate_dataset_payload
 
 
 def cmd_doctor(args: argparse.Namespace) -> int:
@@ -53,6 +54,7 @@ def cmd_plan(args: argparse.Namespace) -> int:
 
 def cmd_prepare_dataset(args: argparse.Namespace) -> int:
     data = convert_benchmark(args.benchmark, limit=args.limit)
+    validate_dataset_payload(data)
     out = write_dataset(data, args.out)
 
     meta = {

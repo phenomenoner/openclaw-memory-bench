@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import json
 import statistics
+import subprocess
 import time
+from collections import Counter
 from dataclasses import asdict
 from datetime import UTC, datetime
 from pathlib import Path
@@ -10,6 +12,7 @@ from pathlib import Path
 from .adapters import available_adapters
 from .dataset import RetrievalDataset
 from .metrics import percentile_ms, score_retrieval
+from .validation import validate_retrieval_report_payload
 
 
 def _now_utc() -> str:
@@ -18,6 +21,86 @@ def _now_utc() -> str:
 
 def _safe_mean(values: list[float]) -> float:
     return float(statistics.mean(values)) if values else 0.0
+
+
+def _classify_failure(exc: Exception, *, phase: str) -> dict:
+    msg = str(exc)
+
+    if isinstance(exc, subprocess.TimeoutExpired):
+        return {
+            "phase": phase,
+            "error_code": "TIMEOUT",
+            "error_category": "timeout",
+            "retryable": True,
+            "exception_type": type(exc).__name__,
+            "error": msg,
+        }
+
+    if isinstance(exc, FileNotFoundError):
+        return {
+            "phase": phase,
+            "error_code": "COMMAND_NOT_FOUND",
+            "error_category": "environment",
+            "retryable": False,
+            "exception_type": type(exc).__name__,
+            "error": msg,
+        }
+
+    if isinstance(exc, json.JSONDecodeError):
+        return {
+            "phase": phase,
+            "error_code": "PARSE_ERROR",
+            "error_category": "parse",
+            "retryable": False,
+            "exception_type": type(exc).__name__,
+            "error": msg,
+        }
+
+    if isinstance(exc, ValueError):
+        return {
+            "phase": phase,
+            "error_code": "DATA_VALIDATION_ERROR",
+            "error_category": "validation",
+            "retryable": False,
+            "exception_type": type(exc).__name__,
+            "error": msg,
+        }
+
+    if isinstance(exc, RuntimeError) and "command failed:" in msg:
+        return {
+            "phase": phase,
+            "error_code": "ADAPTER_COMMAND_FAILED",
+            "error_category": "adapter-runtime",
+            "retryable": True,
+            "exception_type": type(exc).__name__,
+            "error": msg,
+        }
+
+    return {
+        "phase": phase,
+        "error_code": "UNEXPECTED_ERROR",
+        "error_category": "unknown",
+        "retryable": False,
+        "exception_type": type(exc).__name__,
+        "error": msg,
+    }
+
+
+def _failure_breakdown(failures: list[dict]) -> dict:
+    by_code: Counter[str] = Counter()
+    by_category: Counter[str] = Counter()
+    by_phase: Counter[str] = Counter()
+
+    for row in failures:
+        by_code.update([str(row.get("error_code") or "UNKNOWN")])
+        by_category.update([str(row.get("error_category") or "unknown")])
+        by_phase.update([str(row.get("phase") or "unknown")])
+
+    return {
+        "by_code": dict(by_code),
+        "by_category": dict(by_category),
+        "by_phase": dict(by_phase),
+    }
 
 
 def run_retrieval_benchmark(
@@ -55,13 +138,19 @@ def run_retrieval_benchmark(
         container_tag = f"{run_id}:{q.question_id}"
         print(f"[{idx}/{len(questions)}] {q.question_id} :: ingest/search")
 
+        phase = "clear"
         try:
             adapter.clear(container_tag)
+
             ingest_result = {"ingest": "skipped"}
             if not skip_ingest:
+                phase = "ingest"
                 ingest_result = adapter.ingest(q.sessions, container_tag)
+
+                phase = "await_indexing"
                 adapter.await_indexing(ingest_result, container_tag)
 
+            phase = "search"
             t0 = time.perf_counter()
             hits = adapter.search(q.question, container_tag=container_tag, limit=top_k)
             dt_ms = (time.perf_counter() - t0) * 1000.0
@@ -69,6 +158,7 @@ def run_retrieval_benchmark(
             retrieved_session_ids = [str(h.metadata.get("session_id", "")) for h in hits]
             retrieved_session_ids = [x for x in retrieved_session_ids if x]
 
+            phase = "score"
             metrics = score_retrieval(
                 retrieved_ids=retrieved_session_ids,
                 relevant_ids=q.relevant_session_ids,
@@ -100,10 +190,10 @@ def run_retrieval_benchmark(
         except Exception as e:
             err = {
                 "question_id": q.question_id,
-                "error": str(e),
+                **_classify_failure(e, phase=phase),
             }
             failures.append(err)
-            print(f"  ! failed: {e}")
+            print(f"  ! failed ({err['error_code']} @ {phase}): {e}")
             if fail_fast:
                 break
 
@@ -127,6 +217,7 @@ def run_retrieval_benchmark(
             "recall_at_k": _safe_mean(recall_scores),
             "mrr": _safe_mean(mrr_scores),
             "ndcg_at_k": _safe_mean(ndcg_scores),
+            "failure_breakdown": _failure_breakdown(failures),
         },
         "latency": {
             "search_ms_p50": percentile_ms(latencies_ms, 50),
@@ -136,6 +227,7 @@ def run_retrieval_benchmark(
         "results": results,
         "failures": failures,
     }
+    validate_retrieval_report_payload(report)
     return report
 
 

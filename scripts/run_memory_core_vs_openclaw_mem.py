@@ -70,16 +70,16 @@ def _run_provider(
 
 def _metric_pack(report: dict[str, Any]) -> dict[str, float]:
     s = report["summary"]
-    l = report["latency"]
+    latency = report["latency"]
     return {
         "hit_at_k": float(s["hit_at_k"]),
         "precision_at_k": float(s["precision_at_k"]),
         "recall_at_k": float(s["recall_at_k"]),
         "mrr": float(s["mrr"]),
         "ndcg_at_k": float(s["ndcg_at_k"]),
-        "search_ms_p50": float(l["search_ms_p50"]),
-        "search_ms_p95": float(l["search_ms_p95"]),
-        "search_ms_mean": float(l["search_ms_mean"]),
+        "search_ms_p50": float(latency["search_ms_p50"]),
+        "search_ms_p95": float(latency["search_ms_p95"]),
+        "search_ms_mean": float(latency["search_ms_mean"]),
     }
 
 
