@@ -159,6 +159,27 @@ scripts/run_memory_triplet_comprehensive.sh \
 
 Artifacts are written under `artifacts/comprehensive-triplet/<run-group>/`.
 
+### Reliability / debug controls (new)
+
+The triplet orchestrator now supports provider-level watchdogs, progress logs, and fail-fast behavior so one stuck provider does not silently block the whole run:
+
+```bash
+scripts/run_memory_triplet_comprehensive.sh \
+  --benchmark longmemeval \
+  --dataset-limit 30 \
+  --question-limit 10 \
+  --top-k 5 \
+  --provider-timeout-sec 900 \
+  --progress-log artifacts/comprehensive-triplet/debug-progress.log
+```
+
+Useful flags:
+- `--provider-timeout-sec <sec>`: hard wall-time timeout per provider run (default `1500`)
+- `--fail-fast-provider`: stop remaining providers after first provider failure
+- `--progress-log <path>`: timestamped progress log (default `<run-group>/progress.log`)
+
+When a provider fails or times out, the run still emits `compare-*.json` / `compare-*.md` with structured failure status under `provider_status`, instead of aborting with only partial artifacts.
+
 ## Current implementation status
 
 - `openclaw-mem`: retrieval-track adapter implemented (MVP, CLI-driven)
