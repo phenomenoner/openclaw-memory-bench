@@ -33,7 +33,7 @@ Wrapper options:
   --smoke        Run a cheap smoke profile unless overridden by explicit args:
                  --dataset examples/dual_language_mini.json
                  --question-limit 2
-                 --sample-size 2
+                 --sample-size 1
                  --top-k 5
                  --policies must
                  --run-label phase-ab-smoke
@@ -89,7 +89,7 @@ if [[ "$use_smoke" -eq 1 ]]; then
     args+=(--dataset "$dataset_arg")
   }
   has_flag --question-limit "${args[@]}" || args+=(--question-limit 2)
-  has_flag --sample-size "${args[@]}" || args+=(--sample-size 2)
+  has_flag --sample-size "${args[@]}" || args+=(--sample-size 1)
   has_flag --top-k "${args[@]}" || args+=(--top-k 5)
   has_flag --policies "${args[@]}" || args+=(--policies must)
   has_flag --run-label "${args[@]}" || args+=(--run-label phase-ab-smoke)

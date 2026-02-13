@@ -26,6 +26,10 @@ jobs:
       - name: Unit tests
         run: uv run pytest -q
 
+      - name: Phase A/B smoke sanity (optional)
+        if: ${{ vars.PHASE_AB_SMOKE == '1' }}
+        run: scripts/smoke_phase_ab_compare.sh
+
       - name: Retrieval smoke run (openclaw-mem adapter when available)
         run: |
           if command -v openclaw-mem >/dev/null 2>&1; then
