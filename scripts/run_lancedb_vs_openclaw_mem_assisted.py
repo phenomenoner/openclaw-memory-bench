@@ -20,6 +20,15 @@ def _slug(txt: str) -> str:
     return re.sub(r"[^a-zA-Z0-9_.-]+", "-", txt).strip("-").lower()
 
 
+def _resolve_run_group(*, explicit_run_group: str | None, run_label: str) -> str:
+    if explicit_run_group:
+        run_group = _slug(explicit_run_group)
+        if not run_group:
+            raise ValueError("--run-group resolved to empty slug; provide a non-empty value")
+        return run_group
+    return f"{_now_tag()}-{_slug(run_label)}"
+
+
 def _load_json(path: Path) -> dict[str, Any]:
     raw = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(raw, dict):
@@ -372,7 +381,17 @@ def main() -> int:
     ap.add_argument("--gateway-token", default=None)
     ap.add_argument("--lancedb-recall-limit-factor", type=int, default=10)
     ap.add_argument("--run-label", default="phase-ab-lancedb-vs-openclaw-mem-assist")
+    ap.add_argument(
+        "--run-group",
+        default=None,
+        help="Optional explicit run-group directory name for deterministic artifact paths.",
+    )
     ap.add_argument("--output-root", default="artifacts/phase-ab-compare")
+    ap.add_argument(
+        "--latest-pointer-name",
+        default="compare-latest.md",
+        help="Stable markdown pointer file written under output root.",
+    )
     ap.add_argument(
         "--policies",
         nargs="+",
@@ -391,7 +410,7 @@ def main() -> int:
     dataset_path = repo_root / args.dataset if not Path(args.dataset).is_absolute() else Path(args.dataset)
     out_root = repo_root / args.output_root
 
-    run_group = f"{_now_tag()}-{_slug(args.run_label)}"
+    run_group = _resolve_run_group(explicit_run_group=args.run_group, run_label=args.run_label)
     run_dir = out_root / run_group
     run_dir.mkdir(parents=True, exist_ok=True)
 
@@ -620,6 +639,28 @@ def main() -> int:
     compare_md = run_dir / f"compare-{run_group}.md"
     compare_md.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
+    latest_pointer = out_root / args.latest_pointer_name
+    try:
+        compare_md_ptr = compare_md.relative_to(repo_root)
+        compare_json_ptr = compare_json.relative_to(repo_root)
+    except ValueError:
+        compare_md_ptr = compare_md
+        compare_json_ptr = compare_json
+
+    latest_pointer.write_text(
+        "\n".join(
+            [
+                "# Latest Phase A/B compare pointer",
+                "",
+                f"- run_group: `{run_group}`",
+                f"- compare_md: `{compare_md_ptr}`",
+                f"- compare_json: `{compare_json_ptr}`",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
     print(
         json.dumps(
             {
@@ -627,6 +668,7 @@ def main() -> int:
                 "run_group": run_group,
                 "compare_json": str(compare_json),
                 "compare_md": str(compare_md),
+                "latest_pointer": str(latest_pointer),
                 "baseline_report": baseline["report_path"],
                 "observational_report": (observational["report"]["report_path"] if observational is not None else None),
                 "experimental_reports": [x["report"]["report_path"] for x in candidates],
