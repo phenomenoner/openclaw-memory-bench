@@ -287,6 +287,41 @@ def run_retrieval_benchmark(
         except Exception as cleanup_err:
             print(f"  ! cleanup warning (preindex): {cleanup_err}")
 
+    # --- summary breakdowns -----------------------------------------------------
+
+    qid_to_type = {q.question_id: q.question_type for q in questions}
+    totals_by_type: Counter[str] = Counter(q.question_type for q in questions)
+    failed_by_type: Counter[str] = Counter(qid_to_type.get(f.get("question_id"), "unknown") for f in failures)
+
+    rows_by_type: dict[str, list[dict]] = {}
+    for row in results:
+        qt = str(row.get("question_type") or "unknown")
+        rows_by_type.setdefault(qt, []).append(row)
+
+    by_question_type: dict[str, dict] = {}
+    for qt, total in sorted(totals_by_type.items(), key=lambda kv: (-kv[1], kv[0])):
+        rows = rows_by_type.get(qt, [])
+        lat = [float(r.get("latency_ms") or 0.0) for r in rows]
+        metrics_rows = [r.get("metrics") for r in rows if isinstance(r.get("metrics"), dict)]
+
+        def m(key: str) -> float:
+            vals = [float(x.get(key) or 0.0) for x in metrics_rows if isinstance(x, dict)]
+            return _safe_mean(vals)
+
+        by_question_type[qt] = {
+            "questions_total": int(total),
+            "questions_succeeded": int(len(rows)),
+            "questions_failed": int(failed_by_type.get(qt, 0)),
+            "hit_at_k": m("hit_at_k"),
+            "precision_at_k": m("precision_at_k"),
+            "recall_at_k": m("recall_at_k"),
+            "mrr": m("mrr"),
+            "ndcg_at_k": m("ndcg_at_k"),
+            "search_ms_p50": percentile_ms(lat, 50),
+            "search_ms_p95": percentile_ms(lat, 95),
+            "search_ms_mean": _safe_mean(lat),
+        }
+
     report = {
         "schema": "openclaw-memory-bench/retrieval-report/v0.2",
         "run_id": run_id,
@@ -310,6 +345,7 @@ def run_retrieval_benchmark(
             "recall_at_k": _safe_mean(recall_scores),
             "mrr": _safe_mean(mrr_scores),
             "ndcg_at_k": _safe_mean(ndcg_scores),
+            "by_question_type": by_question_type,
             "failure_breakdown": _failure_breakdown(failures),
         },
         "latency": {

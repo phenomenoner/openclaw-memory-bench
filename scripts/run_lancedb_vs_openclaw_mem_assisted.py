@@ -153,6 +153,126 @@ def _filter_dataset(raw: dict[str, Any], *, policy: str) -> tuple[dict[str, Any]
     return out, stats
 
 
+def _compress_session_observational(
+    session: dict[str, Any],
+    *,
+    max_lines: int = 12,
+    max_chars_per_line: int = 240,
+) -> tuple[dict[str, Any], int]:
+    sid = str(session.get("session_id") or "")
+    label = _session_importance_label(session)
+
+    msgs = session.get("messages")
+    msgs = msgs if isinstance(msgs, list) else []
+
+    lines: list[str] = [f"OBSERVATION [{label}] [session:{sid}]".strip()]
+
+    for m in msgs:
+        if not isinstance(m, dict):
+            continue
+        role = str(m.get("role") or "")
+        content = str(m.get("content") or "").strip()
+        if not content:
+            continue
+
+        # Make it log-like and stable.
+        content = " ".join(content.split())
+        if len(content) > max_chars_per_line:
+            content = content[: max_chars_per_line - 1] + "…"
+
+        ts = m.get("ts")
+        if ts:
+            lines.append(f"- {role}@{ts}: {content}")
+        else:
+            lines.append(f"- {role}: {content}")
+
+        if len(lines) - 1 >= max_lines:
+            break
+
+    obs_text = "\n".join(lines).strip() + "\n"
+
+    meta_in = session.get("metadata") if isinstance(session.get("metadata"), dict) else {}
+    meta = dict(meta_in)
+    meta.setdefault("compression", "observational-v0")
+    meta.setdefault("importance_label", label)
+
+    out = dict(session)
+    out["metadata"] = meta
+    out["messages"] = [
+        {
+            "role": "system",
+            "content": obs_text,
+            "ts": None,
+        }
+    ]
+    return out, len(obs_text)
+
+
+def _compress_dataset_observational(
+    raw: dict[str, Any],
+    *,
+    max_lines: int = 12,
+    max_chars_per_line: int = 240,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    q_in = raw.get("questions")
+    if not isinstance(q_in, list) or not q_in:
+        raise ValueError("dataset.questions must be non-empty list")
+
+    kept_questions: list[dict[str, Any]] = []
+    sessions_total = 0
+    chars_total = 0
+    chars_kept = 0
+
+    for q in q_in:
+        if not isinstance(q, dict):
+            continue
+        sessions = q.get("sessions")
+        if not isinstance(sessions, list) or not sessions:
+            continue
+
+        new_sessions: list[dict[str, Any]] = []
+        for s in sessions:
+            if not isinstance(s, dict):
+                continue
+            sessions_total += 1
+            chars_total += _session_chars(s)
+            s2, kept_chars = _compress_session_observational(
+                s,
+                max_lines=max_lines,
+                max_chars_per_line=max_chars_per_line,
+            )
+            chars_kept += kept_chars
+            new_sessions.append(s2)
+
+        if not new_sessions:
+            continue
+
+        q2 = dict(q)
+        q2["sessions"] = new_sessions
+        kept_questions.append(q2)
+
+    out = dict(raw)
+    out["name"] = f"{raw.get('name', 'dataset')}-observational"
+    out["questions"] = kept_questions
+
+    stats = {
+        "mode": "observational",
+        "questions_total": len(q_in),
+        "questions_kept": len(kept_questions),
+        "sessions_total": sessions_total,
+        "sessions_kept": sessions_total,
+        "items_stored_estimate": sessions_total,
+        "chars_total": chars_total,
+        "chars_kept": chars_kept,
+        "vector_count_estimate": sessions_total,
+        "compression_ratio_items": 1.0,
+        "compression_ratio_chars": (chars_kept / chars_total) if chars_total else 0.0,
+        "max_lines": max_lines,
+        "max_chars_per_line": max_chars_per_line,
+    }
+    return out, stats
+
+
 def _run_lancedb(
     *,
     dataset_path: Path,
@@ -260,6 +380,11 @@ def main() -> int:
         choices=["must", "must+nice"],
         help="Importance-gating policies to evaluate for experimental arm.",
     )
+    ap.add_argument(
+        "--include-observational",
+        action="store_true",
+        help="Also run an observational compression arm (derived dataset; text-shape proxy).",
+    )
     args = ap.parse_args()
 
     repo_root = Path(__file__).resolve().parents[1]
@@ -288,6 +413,42 @@ def main() -> int:
 
     raw = _load_json(dataset_path)
     dataset_sha = file_sha256(dataset_path)
+
+    observational: dict[str, Any] | None = None
+    if args.include_observational:
+        obs_dataset, obs_stats = _compress_dataset_observational(raw)
+        obs_path = run_dir / "derived-dataset-observational.json"
+        obs_path.write_text(json.dumps(obs_dataset, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+        obs_report = _run_lancedb(
+            dataset_path=obs_path,
+            out_dir=run_dir,
+            run_group=run_group,
+            run_suffix="observational",
+            top_k=args.top_k,
+            question_limit=args.question_limit,
+            sample_size=args.sample_size,
+            sample_seed=args.sample_seed,
+            session_key=args.session_key,
+            gateway_url=args.gateway_url,
+            gateway_token=args.gateway_token,
+            recall_limit_factor=args.lancedb_recall_limit_factor,
+            extra_manifest_fields={
+                "arm": "observational",
+                "proxy_mode": "derived_dataset_observational_compression",
+                "source_dataset_sha256": dataset_sha,
+                "observational_stats": obs_stats,
+            },
+        )
+
+        observational = {
+            "mode": "observational",
+            "dataset_path": str(obs_path),
+            "dataset_sha256": file_sha256(obs_path),
+            "filter_stats": obs_stats,
+            "report": obs_report,
+        }
+
     candidates: list[dict[str, Any]] = []
 
     for policy in args.policies:
@@ -361,8 +522,15 @@ def main() -> int:
             }
         )
 
+    arms: dict[str, Any] = {
+        "baseline": baseline,
+        "experimental": candidates,
+    }
+    if observational is not None:
+        arms["observational"] = observational
+
     compare = {
-        "schema": "openclaw-memory-bench/phase-ab-compare-report/v0.1",
+        "schema": "openclaw-memory-bench/phase-ab-compare-report/v0.2",
         "run_group": run_group,
         "created_at_utc": datetime.now(UTC).isoformat(),
         "manifest": {
@@ -380,10 +548,7 @@ def main() -> int:
             },
             "limitation": "Experimental arm is proxy-mode derived dataset filtering (no live openclaw-mem adapter chaining yet).",
         },
-        "arms": {
-            "baseline": baseline,
-            "experimental": candidates,
-        },
+        "arms": arms,
         "tradeoff_curve": curve,
         "win_interpretation": {
             "rule": "win if p95 improves >=20% and recall drop <=0.03 and nDCG delta >=0",
@@ -417,8 +582,23 @@ def main() -> int:
         f"- ndcg@k: {baseline_metrics['ndcg_at_k']:.4f}",
         f"- latency p50/p95(ms): {baseline_metrics['search_ms_p50']:.2f}/{baseline_metrics['search_ms_p95']:.2f}",
         "",
-        "## Experimental tradeoff rows",
     ]
+
+    if observational is not None:
+        obs_metrics = _metric_pack(observational["report"])
+        obs_delta = {k: obs_metrics[k] - baseline_metrics[k] for k in baseline_metrics}
+        lines.extend(
+            [
+                "## Observational compression (proxy) metrics",
+                f"- compression chars ratio: {observational['filter_stats']['compression_ratio_chars']:.3f}",
+                f"- Δ recall@k: {obs_delta['recall_at_k']:+.4f}",
+                f"- Δ ndcg@k: {obs_delta['ndcg_at_k']:+.4f}",
+                f"- Δ p95(ms): {obs_delta['search_ms_p95']:+.2f}",
+                "",
+            ]
+        )
+
+    lines.append("## Experimental tradeoff rows")
 
     for row, win in zip(curve, wins, strict=True):
         d = row["delta_experimental_minus_baseline"]
@@ -448,6 +628,7 @@ def main() -> int:
                 "compare_json": str(compare_json),
                 "compare_md": str(compare_md),
                 "baseline_report": baseline["report_path"],
+                "observational_report": (observational["report"]["report_path"] if observational is not None else None),
                 "experimental_reports": [x["report"]["report_path"] for x in candidates],
             },
             ensure_ascii=False,

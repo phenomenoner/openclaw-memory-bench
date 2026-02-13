@@ -28,7 +28,24 @@ Scope for this phase focuses on a two-arm comparison:
   - deterministic sample seed
   - identical recall limit factor and session key
 
+## Optional extension (Phase C) — observational compression (thought-link)
+
+Inspired by Mastra’s “Observational Memory” pattern, add a third arm that keeps **all sessions** but changes the *text shape*:
+
+- **Observational arm (proxy)**: build a derived dataset where each session is compressed into a compact, log-like “observation” message (deterministic heuristic compressor; no LLM).
+
+Purpose:
+- isolate whether stable, compact, log-style text improves retrieval tradeoffs even without importance-gated filtering.
+
+Runner knob:
+- add `--include-observational` to the Phase A/B runner.
+
+> Limitation: this is a proxy for the *format* benefits, not the full Mastra-style observer/reflector pipeline.
+
 ## Metrics (required)
+
+Required reporting:
+- Report all retrieval + latency metrics **overall** and **by `question_type`** (LongMemEval category breakdown).
 
 ### Retrieval quality
 - Hit@K
