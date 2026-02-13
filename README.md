@@ -153,6 +153,11 @@ Artifacts are written under `artifacts/phase-ab-compare/<run-group>/`:
 
 Optional:
 - add `--include-observational` to run a third arm where each session is compressed into a compact log-like “observation” message (text-shape proxy; deterministic, no LLM).
+- add `--smoke` for a cheap sanity run (small dataset + low limits). Or run:
+
+```bash
+scripts/smoke_phase_ab_compare.sh
+```
 
 Note:
 - retrieval reports include `summary.by_question_type` so LongMemEval category deltas are inspectable (not just overall means).
