@@ -151,6 +151,12 @@ Artifacts are written under `artifacts/phase-ab-compare/<run-group>/`:
 - short summary markdown (`compare-*.md`)
 - derived experimental datasets (`derived-dataset-*.json`)
 
+Optional:
+- add `--include-observational` to run a third arm where each session is compressed into a compact log-like “observation” message (text-shape proxy; deterministic, no LLM).
+
+Note:
+- retrieval reports include `summary.by_question_type` so LongMemEval category deltas are inspectable (not just overall means).
+
 > Current experimental arm is a documented **proxy mode**: openclaw-mem-style importance gating is applied at ingest-time by dataset filtering before `memory-lancedb` ingest. This isolates the ingestion-compression tradeoff without requiring a new live adapter-composition layer.
 
 ## One-shot sidecar pilot (memory-core vs openclaw-mem)
