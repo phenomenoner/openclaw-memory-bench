@@ -1,103 +1,107 @@
-# Full Benchmark Plan — openclaw-mem vs memu-engine
+# Full Benchmark Plan — memory-lancedb baseline vs openclaw-mem-assisted ingest
 
-Last updated: 2026-02-08
+Last updated: 2026-02-13
 
 ## Goal
 
-Produce a reproducible, apples-to-apples benchmark report for two OpenClaw memory-layer plugins:
+Produce a reproducible, GTM-ready (or falsification-ready) benchmark package answering:
 
-1. `openclaw-mem`
-2. `memu-engine`
+**Does openclaw-mem first-stable importance-gated ingest improve outcome tradeoffs over native memory-lancedb alone?**
 
-Outputs should be machine-readable artifacts plus one human summary report.
+Scope for this phase focuses on a two-arm comparison:
 
-## Definition of "full report"
+1. **Baseline**: `memory-lancedb` canonical memory tools (`memory_store` / `memory_recall` / `memory_forget`), ingest all sessions.
+2. **Experimental (proxy)**: openclaw-mem-style importance-gated ingest, implemented as derived dataset filtering (`must` or `must+nice`) before `memory-lancedb` ingest.
 
-A run package that includes:
-- Retrieval metrics: Hit@K / Precision@K / Recall@K / MRR / nDCG
-- Latency metrics: p50 / p95 / mean
-- Failure breakdown (ingest/search/parse)
-- Reproducibility manifest (toolkit/git/dataset/provider/runtime)
-- Same dataset slice + same `top_k` across providers
+> Limitation: this phase does not yet chain a live openclaw-mem adapter in front of memory-lancedb. It isolates the ingestion gating effect with a reproducible proxy.
 
-## What is already done
+## Experiment matrix (Phase A/B)
 
-- Retrieval benchmark runner + metrics implemented.
-- Adapters available for both providers (`openclaw-mem`, `memu-engine`).
-- Canonical dataset converters available (`locomo`, `longmemeval`, `convomem`).
-- Report manifest embedding implemented (`retrieval-report/v0.2`).
-- CI baseline is green.
+- Provider runtime: `memory-lancedb` (same adapter + same gateway config for all arms)
+- Dataset split policy:
+  - `baseline/all`
+  - `experimental/must`
+  - `experimental/must+nice`
+- Shared run knobs:
+  - fixed dataset file hash
+  - fixed `top_k`
+  - deterministic sample seed
+  - identical recall limit factor and session key
 
-## Remaining work to unlock the first full two-plugin report
+## Metrics (required)
 
-Status update (2026-02-08):
-- ✅ Phase A profile + orchestrator implemented.
-- ✅ Pilot run verified end-to-end artifact generation and memu fallback behavior.
-- ⏳ Official LongMemEval-100 run pending execution with current baseline profile.
+### Retrieval quality
+- Hit@K
+- Recall@K
+- Precision@K
+- MRR
+- nDCG
 
-## Phase A — Fairness baseline lock (required)
+### Latency
+- search latency p50
+- search latency p95
 
-1. Freeze run recipe
-   - select benchmark dataset + fixed subset size (e.g., LongMemEval-100)
-   - set shared params (`top_k`, `limit`, `skip_ingest` policy)
-2. Create a versioned run profile file in repo (`configs/run-profiles/two-plugin-baseline.json`)
-3. Add dataset + report schema validation gate
+### Ingest volume / compression
+- `#items stored` (session-level ingest count estimate)
+- `total chars` ingested estimate
+- `vector count` estimate (1 vector per stored session in current adapter behavior)
+- compression ratio vs baseline (items + chars)
 
-Deliverable: one approved baseline profile used by both plugins.
+### Cost metadata
+- If available from provider/tool payloads, include in compare artifact.
+- Current v0.2 retrieval reports do not provide tokenized cost telemetry; compare artifact records this as unavailable.
 
-## Phase B — Provider capability alignment (required)
+## Reproducibility contract
 
-1. Confirm `memu-engine` ingest mode for fair comparison:
-   - preferred: `memory_store` available and enabled
-   - fallback: explicit pre-ingest pipeline + `--skip-ingest` for both providers
-2. Document capability matrix (`supports_ingest`, `search_only`, etc.)
-3. Add robust error taxonomy in reports
+Each run package must include a manifest with:
+- toolkit git commit
+- source dataset path + sha256
+- seed and sampling settings
+- `top_k`
+- provider config (sanitized, no tokens)
+- explicit experimental policy / proxy-mode note
 
-Deliverable: both providers can run under one comparable protocol.
+## Interpretation and win criteria
 
-## Phase C — Two-plugin orchestration (required)
+Do not use a single opaque score. Read as a tradeoff curve:
 
-1. Add orchestration command or script (`scripts/run_two_plugin_baseline.sh`) that runs:
-   - openclaw-mem baseline
-   - memu-engine baseline
-2. Add merge step to produce consolidated comparison JSON:
-   - `artifacts/compare-<run-id>.json`
-3. Add human-readable summary markdown:
-   - `artifacts/compare-<run-id>.md`
+- x-axis: compression ratio (items/chars retained)
+- y-axes: Recall@K / Precision@K / nDCG / p95 latency
 
-Deliverable: one-shot command to generate full report package.
+### Win definition for GTM claim (default)
 
-## Phase D — Quality hardening (high priority)
+Experimental policy is a **win** when all are true relative to baseline:
+1. p95 latency improves by at least 20%
+2. Recall@K drop is no worse than 3 percentage points
+3. nDCG is non-negative delta
 
-1. Add converter unit tests for LoCoMo/LongMemEval/ConvoMem edge cases
-2. Add failure-injection tests (timeout/tool invoke errors/invalid payload)
-3. Add CI smoke for two-plugin compare path (small limit)
+If no policy satisfies these thresholds, result is treated as **falsification-ready** evidence that current gating does not meet launch claim under tested settings.
 
-Deliverable: stable repeatability for future reruns.
+## One-shot runner (copy/paste)
 
-## Suggested execution order
+```bash
+uv sync
 
-1. Schema validation + error taxonomy
-2. Baseline run profile file
-3. memu ingest alignment decision
-4. Two-plugin orchestrator + compare report
-5. Execute first official run and publish artifacts
+scripts/run_lancedb_vs_openclaw_mem_assisted.sh \
+  --dataset data/datasets/longmemeval-50.json \
+  --top-k 10 \
+  --sample-seed 7 \
+  --policies must must+nice
+```
 
-## Risks / blockers
+Outputs:
+- `artifacts/phase-ab-compare/<run-group>/baseline/retrieval-report.json`
+- `artifacts/phase-ab-compare/<run-group>/experimental-*/retrieval-report.json`
+- `artifacts/phase-ab-compare/<run-group>/compare-<run-group>.json`
+- `artifacts/phase-ab-compare/<run-group>/compare-<run-group>.md`
 
-- `memu-engine` environments without `memory_store` ingest may reduce comparability.
-- Canonical dataset evidence mapping may need spot-check adjustments for fairness.
-- Tool invoke latency variability can skew p95 if not controlled.
+## Suggested dataset choices
 
-## First official report target (proposed)
+Primary:
+- LongMemEval converted slices (e.g., 50 / 100 questions)
 
-- Dataset: LongMemEval
-- Size: 100 questions
-- Params: `top_k=10`, deterministic retrieval only
-- Providers:
-  - `openclaw-mem` (per-container DB root)
-  - `memu-engine` (`memory_store` ingest if available; otherwise documented pre-ingest mode)
-- Outputs:
-  - two retrieval reports
-  - one merged compare JSON/MD
-  - reproducibility manifest bundle
+Secondary sensitivity checks:
+- LoCoMo slice
+- ConvoMem slice
+
+Run same matrix on at least one secondary dataset before public positioning claims.

@@ -1,6 +1,6 @@
 # OpenClaw Memory Bench — Project Plan & TODOs
 
-Last updated: 2026-02-09
+Last updated: 2026-02-13
 
 ## 1) Mission
 
@@ -43,6 +43,8 @@ Primary targets:
 - [x] Sidecar compare orchestrator added (`scripts/run_memory_core_vs_openclaw_mem.sh`).
 - [x] Preindex-once runner mode added (`--preindex-once` / `--memory-core-preindex-once`) for timeout diagnosis.
 - [x] Preliminary publication pack drafted (`PRELIMINARY_RESULTS.md`, discussion draft, public-release checklist).
+- [x] Phase A/B baseline-vs-assisted compare runner added (`scripts/run_lancedb_vs_openclaw_mem_assisted.sh`).
+- [x] Full benchmark plan refocused to memory-lancedb baseline vs openclaw-mem-assisted ingest proxy (GTM/falsification framing).
 
 ### Verified locally
 
@@ -94,8 +96,8 @@ Primary targets:
   - [ ] openclaw-mem baseline run recipe
   - [ ] memu-engine baseline run recipe
 - [ ] Add explicit **comparison-mode matrix** docs/runs:
+  - [x] standalone backend + assisted-ingest proxy runs (Phase A/B)
   - [ ] standalone sidecar runs
-  - [ ] standalone backend runs
   - [ ] sidecar + backend combined stack runs (to avoid interpretation ambiguity)
 - [x] Improve `memu-engine` session-id extraction robustness from citations/snippets.
 - [x] Add deterministic sample-splitting controls (seeded subsets).

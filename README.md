@@ -136,6 +136,23 @@ scripts/run_two_plugin_baseline.sh \
 This orchestrator emits both provider reports and merged compare artifacts under `artifacts/full-benchmark/<run-group>/`.
 See `docs/PHASE_A_EXECUTION.md` for fallback behavior and fast pilot mode.
 
+## One-shot Phase A/B compare (memory-lancedb baseline vs openclaw-mem-assisted ingest proxy)
+
+```bash
+scripts/run_lancedb_vs_openclaw_mem_assisted.sh \
+  --dataset data/datasets/longmemeval-50.json \
+  --top-k 10 \
+  --policies must must+nice
+```
+
+Artifacts are written under `artifacts/phase-ab-compare/<run-group>/`:
+- per-arm retrieval reports
+- merged compare JSON (`compare-*.json`)
+- short summary markdown (`compare-*.md`)
+- derived experimental datasets (`derived-dataset-*.json`)
+
+> Current experimental arm is a documented **proxy mode**: openclaw-mem-style importance gating is applied at ingest-time by dataset filtering before `memory-lancedb` ingest. This isolates the ingestion-compression tradeoff without requiring a new live adapter-composition layer.
+
 ## One-shot sidecar pilot (memory-core vs openclaw-mem)
 
 ```bash

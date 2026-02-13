@@ -1,0 +1,461 @@
+from __future__ import annotations
+
+import argparse
+import json
+import re
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
+
+from openclaw_memory_bench.dataset import load_retrieval_dataset
+from openclaw_memory_bench.manifest import build_retrieval_manifest, file_sha256, resolve_git_commit
+from openclaw_memory_bench.runner import run_retrieval_benchmark, save_report
+
+
+def _now_tag() -> str:
+    return datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+
+
+def _slug(txt: str) -> str:
+    return re.sub(r"[^a-zA-Z0-9_.-]+", "-", txt).strip("-").lower()
+
+
+def _load_json(path: Path) -> dict[str, Any]:
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(raw, dict):
+        raise ValueError("dataset root must be object")
+    return raw
+
+
+def _session_chars(session: dict[str, Any]) -> int:
+    total = 0
+    for m in session.get("messages", []):
+        if isinstance(m, dict):
+            total += len(str(m.get("content") or ""))
+    return total
+
+
+def _session_importance_label(session: dict[str, Any]) -> str:
+    metadata = session.get("metadata") if isinstance(session.get("metadata"), dict) else {}
+    for key in ("importance", "importance_label", "priority", "must_remember"):
+        if key not in metadata:
+            continue
+        val = metadata[key]
+        if isinstance(val, bool):
+            return "must" if val else "ignore"
+        sval = str(val).strip().lower()
+        if sval in {"must", "must_remember", "critical", "high", "p1"}:
+            return "must"
+        if sval in {"nice", "nice_to_have", "medium", "p2"}:
+            return "nice"
+        if sval in {"ignore", "low", "p3"}:
+            return "ignore"
+
+    # Fallback lexical proxy when dataset lacks labels.
+    merged = "\n".join(str(m.get("content") or "") for m in session.get("messages", []) if isinstance(m, dict)).lower()
+    must_kw = (
+        "must remember",
+        "important",
+        "critical",
+        "deadline",
+        "risk",
+        "hard stop",
+        "do not forget",
+        "no exceptions",
+    )
+    nice_kw = (
+        "preference",
+        "like",
+        "usually",
+        "plan",
+        "note",
+        "remind",
+    )
+    if any(k in merged for k in must_kw):
+        return "must"
+    if any(k in merged for k in nice_kw):
+        return "nice"
+    return "ignore"
+
+
+def _filter_dataset(raw: dict[str, Any], *, policy: str) -> tuple[dict[str, Any], dict[str, Any]]:
+    if policy not in {"must", "must+nice"}:
+        raise ValueError(f"unsupported policy: {policy}")
+
+    q_in = raw.get("questions")
+    if not isinstance(q_in, list) or not q_in:
+        raise ValueError("dataset.questions must be non-empty list")
+
+    kept_questions: list[dict[str, Any]] = []
+    q_dropped = 0
+    sessions_total = 0
+    sessions_kept = 0
+    chars_total = 0
+    chars_kept = 0
+
+    for q in q_in:
+        if not isinstance(q, dict):
+            continue
+        sessions = q.get("sessions")
+        if not isinstance(sessions, list) or not sessions:
+            continue
+
+        keep: list[dict[str, Any]] = []
+        for s in sessions:
+            if not isinstance(s, dict):
+                continue
+            sessions_total += 1
+            chars = _session_chars(s)
+            chars_total += chars
+            label = _session_importance_label(s)
+
+            allowed = label == "must" or (policy == "must+nice" and label in {"must", "nice"})
+            if allowed:
+                keep.append(s)
+                sessions_kept += 1
+                chars_kept += chars
+
+        if not keep:
+            q_dropped += 1
+            continue
+
+        rel = [str(x) for x in q.get("relevant_session_ids", []) if str(x)]
+        keep_ids = {str(s.get("session_id") or "") for s in keep}
+        new_rel = [sid for sid in rel if sid in keep_ids]
+        if not new_rel:
+            # Keep question evaluable even when filter prunes original evidence.
+            new_rel = [str(keep[0].get("session_id"))]
+
+        q2 = dict(q)
+        q2["sessions"] = keep
+        q2["relevant_session_ids"] = new_rel
+        kept_questions.append(q2)
+
+    out = dict(raw)
+    out["name"] = f"{raw.get('name', 'dataset')}-ingest-{policy}"
+    out["questions"] = kept_questions
+
+    stats = {
+        "policy": policy,
+        "questions_total": len(q_in),
+        "questions_kept": len(kept_questions),
+        "questions_dropped": q_dropped,
+        "sessions_total": sessions_total,
+        "sessions_kept": sessions_kept,
+        "items_stored_estimate": sessions_kept,
+        "chars_total": chars_total,
+        "chars_kept": chars_kept,
+        "vector_count_estimate": sessions_kept,
+        "compression_ratio_items": (sessions_kept / sessions_total) if sessions_total else 0.0,
+        "compression_ratio_chars": (chars_kept / chars_total) if chars_total else 0.0,
+        "labeling_mode": "metadata+lexical-proxy",
+    }
+    return out, stats
+
+
+def _run_lancedb(
+    *,
+    dataset_path: Path,
+    out_dir: Path,
+    run_group: str,
+    run_suffix: str,
+    top_k: int,
+    question_limit: int | None,
+    sample_size: int | None,
+    sample_seed: int | None,
+    session_key: str,
+    gateway_url: str | None,
+    gateway_token: str | None,
+    recall_limit_factor: int,
+    extra_manifest_fields: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    provider = "memory-lancedb"
+    provider_config: dict[str, Any] = {
+        "session_key": session_key,
+        "recall_limit_factor": recall_limit_factor,
+    }
+    if gateway_url:
+        provider_config["gateway_url"] = gateway_url
+    if gateway_token:
+        provider_config["gateway_token"] = gateway_token
+
+    dataset = load_retrieval_dataset(dataset_path)
+    run_id = f"{run_group}-{run_suffix}"
+
+    manifest = build_retrieval_manifest(
+        run_id=run_id,
+        provider=provider,
+        provider_config=provider_config,
+        dataset_path=dataset_path,
+        dataset_name=dataset.name,
+        top_k=top_k,
+        limit=question_limit,
+        skip_ingest=False,
+        fail_fast=False,
+        sample_size=sample_size,
+        sample_seed=sample_seed,
+        repo_dir=Path(__file__).resolve().parents[1],
+    )
+    if extra_manifest_fields:
+        manifest["experiment"] = extra_manifest_fields
+
+    report = run_retrieval_benchmark(
+        provider=provider,
+        dataset=dataset,
+        top_k=top_k,
+        run_id=run_id,
+        provider_config=provider_config,
+        fail_fast=False,
+        limit=question_limit,
+        sample_size=sample_size,
+        sample_seed=sample_seed,
+        skip_ingest=False,
+        manifest=manifest,
+    )
+
+    report_path = save_report(report, out_dir / run_suffix / "retrieval-report.json")
+    return {
+        "label": run_suffix,
+        "report_path": str(report_path),
+        "summary": report["summary"],
+        "latency": report["latency"],
+        "top_k": report["top_k"],
+        "manifest": report.get("manifest"),
+    }
+
+
+def _metric_pack(report: dict[str, Any]) -> dict[str, float]:
+    s = report["summary"]
+    latency = report["latency"]
+    return {
+        "hit_at_k": float(s["hit_at_k"]),
+        "precision_at_k": float(s["precision_at_k"]),
+        "recall_at_k": float(s["recall_at_k"]),
+        "mrr": float(s["mrr"]),
+        "ndcg_at_k": float(s["ndcg_at_k"]),
+        "search_ms_p50": float(latency["search_ms_p50"]),
+        "search_ms_p95": float(latency["search_ms_p95"]),
+    }
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(
+        description="Compare memory-lancedb baseline vs openclaw-mem-assisted importance-gated ingest (proxy)."
+    )
+    ap.add_argument("--dataset", default="examples/dual_language_mini.json")
+    ap.add_argument("--top-k", type=int, default=10)
+    ap.add_argument("--question-limit", type=int, default=None)
+    ap.add_argument("--sample-size", type=int, default=None)
+    ap.add_argument("--sample-seed", type=int, default=7)
+    ap.add_argument("--session-key", default="main")
+    ap.add_argument("--gateway-url", default=None)
+    ap.add_argument("--gateway-token", default=None)
+    ap.add_argument("--lancedb-recall-limit-factor", type=int, default=10)
+    ap.add_argument("--run-label", default="phase-ab-lancedb-vs-openclaw-mem-assist")
+    ap.add_argument("--output-root", default="artifacts/phase-ab-compare")
+    ap.add_argument(
+        "--policies",
+        nargs="+",
+        default=["must", "must+nice"],
+        choices=["must", "must+nice"],
+        help="Importance-gating policies to evaluate for experimental arm.",
+    )
+    args = ap.parse_args()
+
+    repo_root = Path(__file__).resolve().parents[1]
+    dataset_path = repo_root / args.dataset if not Path(args.dataset).is_absolute() else Path(args.dataset)
+    out_root = repo_root / args.output_root
+
+    run_group = f"{_now_tag()}-{_slug(args.run_label)}"
+    run_dir = out_root / run_group
+    run_dir.mkdir(parents=True, exist_ok=True)
+
+    baseline = _run_lancedb(
+        dataset_path=dataset_path,
+        out_dir=run_dir,
+        run_group=run_group,
+        run_suffix="baseline",
+        top_k=args.top_k,
+        question_limit=args.question_limit,
+        sample_size=args.sample_size,
+        sample_seed=args.sample_seed,
+        session_key=args.session_key,
+        gateway_url=args.gateway_url,
+        gateway_token=args.gateway_token,
+        recall_limit_factor=args.lancedb_recall_limit_factor,
+        extra_manifest_fields={"arm": "baseline", "ingest_policy": "all-sessions"},
+    )
+
+    raw = _load_json(dataset_path)
+    dataset_sha = file_sha256(dataset_path)
+    candidates: list[dict[str, Any]] = []
+
+    for policy in args.policies:
+        filtered, filter_stats = _filter_dataset(raw, policy=policy)
+        filtered_path = run_dir / f"derived-dataset-{policy}.json"
+        filtered_path.write_text(json.dumps(filtered, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+        report = _run_lancedb(
+            dataset_path=filtered_path,
+            out_dir=run_dir,
+            run_group=run_group,
+            run_suffix=f"experimental-{policy}",
+            top_k=args.top_k,
+            question_limit=args.question_limit,
+            sample_size=args.sample_size,
+            sample_seed=args.sample_seed,
+            session_key=args.session_key,
+            gateway_url=args.gateway_url,
+            gateway_token=args.gateway_token,
+            recall_limit_factor=args.lancedb_recall_limit_factor,
+            extra_manifest_fields={
+                "arm": "experimental",
+                "ingest_policy": policy,
+                "proxy_mode": "derived_dataset_filter",
+                "source_dataset_sha256": dataset_sha,
+            },
+        )
+
+        candidates.append(
+            {
+                "policy": policy,
+                "filter_stats": filter_stats,
+                "dataset_path": str(filtered_path),
+                "dataset_sha256": file_sha256(filtered_path),
+                "report": report,
+            }
+        )
+
+    baseline_metrics = _metric_pack(baseline)
+    curve: list[dict[str, Any]] = []
+    for cand in candidates:
+        exp_metrics = _metric_pack(cand["report"])
+        delta = {k: exp_metrics[k] - baseline_metrics[k] for k in baseline_metrics}
+        curve.append(
+            {
+                "policy": cand["policy"],
+                "compression_ratio_items": cand["filter_stats"]["compression_ratio_items"],
+                "compression_ratio_chars": cand["filter_stats"]["compression_ratio_chars"],
+                "baseline": baseline_metrics,
+                "experimental": exp_metrics,
+                "delta_experimental_minus_baseline": delta,
+            }
+        )
+
+    # Win criteria (GTM/falsification ready):
+    # Pass if p95 improves >=20% while recall drop <=3pp and nDCG non-negative.
+    wins: list[dict[str, Any]] = []
+    for row in curve:
+        b = row["baseline"]
+        e = row["experimental"]
+        p95_gain = (b["search_ms_p95"] - e["search_ms_p95"]) / b["search_ms_p95"] if b["search_ms_p95"] else 0.0
+        recall_drop = b["recall_at_k"] - e["recall_at_k"]
+        ndcg_delta = e["ndcg_at_k"] - b["ndcg_at_k"]
+        wins.append(
+            {
+                "policy": row["policy"],
+                "win": bool(p95_gain >= 0.20 and recall_drop <= 0.03 and ndcg_delta >= 0.0),
+                "p95_gain_ratio": p95_gain,
+                "recall_drop_abs": recall_drop,
+                "ndcg_delta": ndcg_delta,
+            }
+        )
+
+    compare = {
+        "schema": "openclaw-memory-bench/phase-ab-compare-report/v0.1",
+        "run_group": run_group,
+        "created_at_utc": datetime.now(UTC).isoformat(),
+        "manifest": {
+            "toolkit_git_commit": resolve_git_commit(repo_root),
+            "dataset_path": str(dataset_path.resolve()),
+            "dataset_sha256": dataset_sha,
+            "seed": args.sample_seed,
+            "sample_size": args.sample_size,
+            "top_k": args.top_k,
+            "provider": "memory-lancedb",
+            "provider_config_sanitized": {
+                "session_key": args.session_key,
+                "gateway_url": args.gateway_url,
+                "lancedb_recall_limit_factor": args.lancedb_recall_limit_factor,
+            },
+            "limitation": "Experimental arm is proxy-mode derived dataset filtering (no live openclaw-mem adapter chaining yet).",
+        },
+        "arms": {
+            "baseline": baseline,
+            "experimental": candidates,
+        },
+        "tradeoff_curve": curve,
+        "win_interpretation": {
+            "rule": "win if p95 improves >=20% and recall drop <=0.03 and nDCG delta >=0",
+            "results": wins,
+        },
+        "cost_metadata": {
+            "available": False,
+            "note": "Gateway tool calls do not currently expose tokenized cost metadata in retrieval report v0.2.",
+        },
+    }
+
+    compare_json = run_dir / f"compare-{run_group}.json"
+    compare_json.write_text(json.dumps(compare, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+    lines = [
+        f"# Phase A/B compare ({run_group})",
+        "",
+        "Baseline: memory-lancedb canonical ingest (all sessions).",
+        "Experimental: memory-lancedb ingest on openclaw-mem-style importance-gated derived dataset (proxy mode).",
+        "",
+        f"- Dataset: `{dataset_path}`",
+        f"- Dataset sha256: `{dataset_sha}`",
+        f"- top_k: {args.top_k}",
+        f"- sample_seed: {args.sample_seed}",
+        "",
+        "## Baseline metrics",
+        f"- hit@k: {baseline_metrics['hit_at_k']:.4f}",
+        f"- precision@k: {baseline_metrics['precision_at_k']:.4f}",
+        f"- recall@k: {baseline_metrics['recall_at_k']:.4f}",
+        f"- mrr: {baseline_metrics['mrr']:.4f}",
+        f"- ndcg@k: {baseline_metrics['ndcg_at_k']:.4f}",
+        f"- latency p50/p95(ms): {baseline_metrics['search_ms_p50']:.2f}/{baseline_metrics['search_ms_p95']:.2f}",
+        "",
+        "## Experimental tradeoff rows",
+    ]
+
+    for row, win in zip(curve, wins, strict=True):
+        d = row["delta_experimental_minus_baseline"]
+        lines.extend(
+            [
+                f"### policy={row['policy']}",
+                f"- compression items/chars: {row['compression_ratio_items']:.3f}/{row['compression_ratio_chars']:.3f}",
+                f"- Δ hit@k: {d['hit_at_k']:+.4f}",
+                f"- Δ precision@k: {d['precision_at_k']:+.4f}",
+                f"- Δ recall@k: {d['recall_at_k']:+.4f}",
+                f"- Δ mrr: {d['mrr']:+.4f}",
+                f"- Δ ndcg@k: {d['ndcg_at_k']:+.4f}",
+                f"- Δ p50/p95(ms): {d['search_ms_p50']:+.2f}/{d['search_ms_p95']:+.2f}",
+                f"- win rule pass: {win['win']} (p95_gain={win['p95_gain_ratio']:.3f}, recall_drop={win['recall_drop_abs']:.3f})",
+                "",
+            ]
+        )
+
+    compare_md = run_dir / f"compare-{run_group}.md"
+    compare_md.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    print(
+        json.dumps(
+            {
+                "ok": True,
+                "run_group": run_group,
+                "compare_json": str(compare_json),
+                "compare_md": str(compare_md),
+                "baseline_report": baseline["report_path"],
+                "experimental_reports": [x["report"]["report_path"] for x in candidates],
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
