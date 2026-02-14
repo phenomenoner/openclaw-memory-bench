@@ -145,6 +145,19 @@ scripts/run_lancedb_vs_openclaw_mem_assisted.sh \
   --policies must must+nice
 ```
 
+Deterministic long-run profile (stable run-group path for reproducible reruns):
+
+```bash
+scripts/run_phase_ab_longmemeval50.sh
+# writes to artifacts/phase-ab-compare/phase-ab-longmemeval50-seed7-topk10/
+```
+
+If you need a separate receipt while preserving deterministic naming convention:
+
+```bash
+scripts/run_phase_ab_longmemeval50.sh --run-group phase-ab-longmemeval50-rerun-a
+```
+
 Artifacts are written under `artifacts/phase-ab-compare/<run-group>/`:
 - per-arm retrieval reports
 - merged compare JSON (`compare-*.json`)
