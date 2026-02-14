@@ -1,6 +1,6 @@
 # Phase A/B Milestone Report — LongMemEval-50 (Draft)
 
-- Updated: 2026-02-14 23:27 Asia/Taipei
+- Updated: 2026-02-15 01:26 Asia/Taipei
 - Status: Draft (LongMemEval-50 artifact-backed narrative + replay contract)
 
 ## Goal
@@ -80,6 +80,23 @@ scripts/run_lancedb_vs_openclaw_mem_assisted.sh \
   --smoke \
   --run-group 20260213T172602Z-phase-ab-smoke
 ```
+
+## Milestone publish footer (artifact pointers)
+- Command for replay:
+  ```bash
+  cd /root/.openclaw/workspace/openclaw-memory-bench
+  uv sync
+  scripts/run_lancedb_vs_openclaw_mem_assisted.sh \
+    --dataset data/datasets/longmemeval-50.json \
+    --top-k 10 \
+    --sample-seed 7 \
+    --policies must must+nice
+  ```
+- Canonical artifacts (LongMemEval-50):
+  - [Compare markdown](artifacts/phase-ab-compare/phase-ab-longmemeval50-seed7-topk10/compare-phase-ab-longmemeval50-seed7-topk10.md)
+  - [Compare JSON](artifacts/phase-ab-compare/phase-ab-longmemeval50-seed7-topk10/compare-phase-ab-longmemeval50-seed7-topk10.json)
+  - [Run-group pointer](artifacts/phase-ab-compare/compare-latest.md)
+  - [Benchmark report](REPORTS/phase-ab-longmemeval50.md)
 
 ## Next gate to mark milestone complete
 Freeze this report as the milestone baseline and run the observational add-on (`--include-observational`) to decide whether latency/quality tradeoffs remain stable with a third arm.
