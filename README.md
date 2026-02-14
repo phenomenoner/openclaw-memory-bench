@@ -158,6 +158,14 @@ If you need a separate receipt while preserving deterministic naming convention:
 scripts/run_phase_ab_longmemeval50.sh --run-group phase-ab-longmemeval50-rerun-a
 ```
 
+Multiseed (quality confidence):
+
+```bash
+scripts/run_phase_ab_longmemeval50_multiseed.sh
+# writes per-seed runs under artifacts/phase-ab-compare/<prefix>-seedN/
+# and an aggregate summary under artifacts/phase-ab-compare/<out-group>/multiseed-summary.{json,md}
+```
+
 Artifacts are written under `artifacts/phase-ab-compare/<run-group>/`:
 - per-arm retrieval reports
 - merged compare JSON (`compare-*.json`)
