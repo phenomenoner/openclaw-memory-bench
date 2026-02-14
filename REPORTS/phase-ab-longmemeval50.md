@@ -1,6 +1,6 @@
 # Phase A/B Milestone Report — LongMemEval-50 (Draft)
 
-- Updated: 2026-02-15 01:26 Asia/Taipei
+- Updated: 2026-02-15 03:26 Asia/Taipei
 - Status: Draft (LongMemEval-50 artifact-backed narrative + replay contract)
 
 ## Goal
@@ -50,6 +50,18 @@ This report is redaction-safe: aggregate metrics only, no raw private memory pay
 - `must` compresses aggressively and materially degrades retrieval quality; not viable for this milestone objective.
 - `must+nice` mostly preserves corpus size and improves quality metrics, but still increases latency enough to fail the current win rule.
 - Net: under current proxy-mode filtering, neither policy is a strict “win” against the baseline rule; `must+nice` is the only quality-positive candidate and should be treated as a quality/latency tradeoff, not a strict upgrade.
+
+## Recommendation memo (decision options)
+
+### Option 1 — quality-first (keep baseline semantics, accept latency-quality tradeoff)
+- Select `must+nice` as a candidate only if CK accepts relaxed operational constraints (allowing +17.95 ms p95 and +15.66/17.95 ms latency uplift on LongMemEval-50).
+- This arm preserves quality most (`+0.0204` hit / `+0.0667` nDCG / `+0.0829` mRR) but still fails the strict win rule (`p95_gain=-0.080`, `recall_drop=-0.020`).
+- Practical action: keep as experimental, no auto-default yet; monitor recall drift on larger slices.
+
+### Option 2 — latency-first (freeze baseline by default)
+- Keep baseline as default (`0` compression policy) because both filtered arms violate latency/recall rule under current gate.
+- This avoids regression risk for recall and p95 while retaining known behavior.
+- Practical action: only revisit after upstream recall/serving optimization or after adding a stronger must+nice selector.
 
 ## by_question_type narrative check
 The latest compare JSON includes `summary.by_question_type` for all arms.
