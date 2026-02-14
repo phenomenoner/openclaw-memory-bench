@@ -54,7 +54,13 @@ def _sleep_jitter(rng: random.Random) -> None:
     time.sleep(15.0 + rng.uniform(2.0, 6.0))
 
 
-def openclaw_agent_once(*, session_id: str, message: str, thinking: str = "high") -> str:
+def openclaw_agent_once(
+    *,
+    session_id: str,
+    message: str,
+    thinking: str = "high",
+    timeout_s: int = 600,
+) -> str:
     """Call OpenClaw agent (Gateway-backed) and return concatenated text payloads."""
     cmd = [
         "openclaw",
@@ -65,6 +71,8 @@ def openclaw_agent_once(*, session_id: str, message: str, thinking: str = "high"
         message,
         "--thinking",
         thinking,
+        "--timeout",
+        str(timeout_s),
         "--json",
     ]
     proc = subprocess.run(cmd, capture_output=True, text=True)
@@ -282,7 +290,8 @@ def main() -> int:
                     message=actor_message(history=history, question=question),
                     thinking=args.thinking,
                 )
-                print(json.dumps({"question_id": qid, "hypothesis": hyp}, ensure_ascii=False), file=hyp_f)
+                print(json.dumps({"question_id": qid, "hypothesis": hyp}, ensure_ascii=False), file=hyp_f, flush=True)
+                hyp_f.flush()
 
                 # Judge
                 abstention = "_abs" in qid
@@ -305,10 +314,11 @@ def main() -> int:
                         "raw": judge_resp,
                     },
                 }
-                print(json.dumps(entry, ensure_ascii=False), file=eval_f)
+                print(json.dumps(entry, ensure_ascii=False), file=eval_f, flush=True)
+                eval_f.flush()
                 rows.append(Row(qid, qtype, bool(label)))
 
-                print(f"[{arm}] {i+1}/{len(qs)} qid={qid} label={label}")
+                print(f"[{arm}] {i+1}/{len(qs)} qid={qid} label={label}", flush=True)
 
         by_type: dict[str, list[bool]] = {}
         for r in rows:
