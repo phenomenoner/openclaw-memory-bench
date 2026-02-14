@@ -136,6 +136,17 @@ scripts/run_two_plugin_baseline.sh \
 This orchestrator emits both provider reports and merged compare artifacts under `artifacts/full-benchmark/<run-group>/`.
 See `docs/PHASE_A_EXECUTION.md` for fallback behavior and fast pilot mode.
 
+## Phase A: QA correctness (LongMemEval-50, repo-local)
+
+We also keep a small **QA correctness** harness for our repo-local `longmemeval-50.json` format.
+This is a Phase-A calibration tool (not the official LongMemEval runner).
+
+```bash
+# Requires OPENAI_API_KEY in env
+scripts/run_longmemeval50_qa_compare.sh --limit 20 --arms oracle observational
+# writes to artifacts/qa-compare/<run-group>/summary.md
+```
+
 ## One-shot Phase A/B compare (memory-lancedb baseline vs openclaw-mem-assisted ingest proxy)
 
 ```bash
