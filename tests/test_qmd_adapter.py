@@ -1,5 +1,6 @@
 import json
 import subprocess
+from pathlib import Path
 
 from openclaw_memory_bench.adapters.qmd import QmdAdapter
 
@@ -48,3 +49,22 @@ def test_search_maps_session_id_from_path(monkeypatch) -> None:
     assert hits[0].id == "doc-1"
     assert hits[0].metadata["session_id"] == "s-mix-3"
     assert hits[0].score == 0.88
+
+
+def test_search_maps_non_empty_fixture_payload(monkeypatch) -> None:
+    adapter = QmdAdapter()
+    adapter.initialize({"qmd_cmd": ["/usr/local/bin/qmd"]})
+
+    fixture_path = Path(__file__).parent / "fixtures" / "qmd" / "non_empty_results.json"
+    fixture_stdout = fixture_path.read_text(encoding="utf-8")
+
+    def _ok(*args, **kwargs):
+        return subprocess.CompletedProcess(args=["qmd"], returncode=0, stdout=fixture_stdout, stderr="")
+
+    monkeypatch.setattr(subprocess, "run", _ok)
+
+    hits = adapter.search("hello", container_tag="t1", limit=3)
+    assert [h.id for h in hits] == ["doc-1", "doc-2", "doc-3"]
+    assert [h.metadata["session_id"] for h in hits] == ["s-alpha-1", "s-beta-9", "s-gamma-2"]
+    assert [h.content for h in hits] == ["alpha snippet", "beta summary", "gamma content"]
+    assert [h.score for h in hits] == [0.91, 0.47, 0.0]

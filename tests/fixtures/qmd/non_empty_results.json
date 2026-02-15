@@ -1,0 +1,21 @@
+{
+  "results": [
+    {
+      "id": "doc-1",
+      "path": "/tmp/memory/sessions/s-alpha-1.jsonl:12:4",
+      "snippet": "alpha snippet",
+      "score": 0.91
+    },
+    {
+      "doc_id": "doc-2",
+      "session_id": "s-beta-9",
+      "summary": "beta summary",
+      "score": "0.47"
+    },
+    {
+      "id": "doc-3",
+      "path": "/tmp/memory/sessions/s-gamma-2.md:3:7",
+      "content": "gamma content"
+    }
+  ]
+}
