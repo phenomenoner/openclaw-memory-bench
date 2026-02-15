@@ -120,6 +120,13 @@ def cmd_run_retrieval(args: argparse.Namespace) -> int:
         provider_config["session_key"] = args.session_key
         provider_config["recall_limit_factor"] = args.lancedb_recall_limit_factor
 
+    if provider == "qmd":
+        if args.qmd_cmd:
+            provider_config["qmd_cmd"] = args.qmd_cmd
+        provider_config["qmd_timeout_sec"] = args.qmd_timeout_sec
+        provider_config["qmd_query_extra_args"] = args.qmd_query_extra_args
+        provider_config["qmd_strict"] = args.qmd_strict
+
     manifest = build_retrieval_manifest(
         run_id=run_id,
         provider=provider,
@@ -180,7 +187,7 @@ def build_parser() -> argparse.ArgumentParser:
     plan.add_argument(
         "--provider",
         required=True,
-        help="openclaw-mem | memu-engine | memory-core | memory-lancedb",
+        help="openclaw-mem | memu-engine | memory-core | memory-lancedb | qmd",
     )
     plan.add_argument("--benchmark", required=True, help="locomo | longmemeval | convomem")
     plan.add_argument("--track", default="retrieval", choices=["retrieval", "e2e"])
@@ -199,7 +206,7 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument(
         "--provider",
         required=True,
-        help="openclaw-mem | memu-engine | memory-core | memory-lancedb",
+        help="openclaw-mem | memu-engine | memory-core | memory-lancedb | qmd",
     )
     run.add_argument("--dataset", required=True, help="Path to retrieval dataset JSON")
     run.add_argument("--top-k", type=int, default=10)
@@ -308,6 +315,31 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=10,
         help="(memory-lancedb) multiply top-k to set memory_recall candidate pool before container filter",
+    )
+
+    # qmd options (experimental adapter spike)
+    run.add_argument(
+        "--qmd-cmd",
+        nargs="+",
+        default=None,
+        help="(qmd) command override, e.g. qmd",
+    )
+    run.add_argument(
+        "--qmd-timeout-sec",
+        type=int,
+        default=20,
+        help="(qmd) timeout for `qmd query --json` shell call",
+    )
+    run.add_argument(
+        "--qmd-query-extra-args",
+        nargs="*",
+        default=[],
+        help="(qmd) extra args appended after --limit",
+    )
+    run.add_argument(
+        "--qmd-strict",
+        action="store_true",
+        help="(qmd) raise adapter errors instead of fallback-to-empty results",
     )
 
     run.set_defaults(func=cmd_run_retrieval)
