@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from openclaw_memory_bench.dataset import load_retrieval_dataset
+from openclaw_memory_bench.hybrid import build_two_stage_hybrid_report
 from openclaw_memory_bench.manifest import build_retrieval_manifest, file_sha256, resolve_git_commit
 from openclaw_memory_bench.runner import run_retrieval_benchmark, save_report
 
@@ -367,6 +368,60 @@ def _metric_pack(report: dict[str, Any]) -> dict[str, float]:
     }
 
 
+def _win_eval(*, baseline: dict[str, float], candidate: dict[str, float], policy: str) -> dict[str, Any]:
+    p95_gain = (
+        (baseline["search_ms_p95"] - candidate["search_ms_p95"]) / baseline["search_ms_p95"]
+        if baseline["search_ms_p95"]
+        else 0.0
+    )
+    recall_drop = baseline["recall_at_k"] - candidate["recall_at_k"]
+    ndcg_delta = candidate["ndcg_at_k"] - baseline["ndcg_at_k"]
+    return {
+        "policy": policy,
+        "win": bool(p95_gain >= 0.20 and recall_drop <= 0.03 and ndcg_delta >= 0.0),
+        "p95_gain_ratio": p95_gain,
+        "recall_drop_abs": recall_drop,
+        "ndcg_delta": ndcg_delta,
+    }
+
+
+def _write_hybrid_markdown(
+    *,
+    path: Path,
+    run_id: str,
+    report: dict[str, Any],
+    stage_counts: dict[str, int],
+    must_policy: str,
+    fallback_policy: str,
+) -> None:
+    cfg = report.get("config") if isinstance(report.get("config"), dict) else {}
+    lines = [
+        f"# Two-stage hybrid report ({run_id})",
+        "",
+        f"- must_policy: `{must_policy}`",
+        f"- fallback_policy: `{fallback_policy}`",
+        f"- fusion_mode: {cfg.get('fusion_mode', 'append_fill')}",
+        f"- min_must_count: {cfg.get('min_must_count', 'n/a')}",
+        f"- stage2_max_additional: {cfg.get('stage2_max_additional', 'n/a')}",
+        f"- stage2_max_ms: {cfg.get('stage2_max_ms', 'n/a')}",
+        "",
+        "## Stage2 outcomes",
+        f"- stage2_used: {stage_counts.get('stage2_used', 0)}",
+        f"- stage2_skipped_budget: {stage_counts.get('stage2_skipped_budget', 0)}",
+        f"- stage2_not_triggered: {stage_counts.get('stage2_not_triggered', 0)}",
+        "",
+        "## Summary metrics",
+        f"- hit@k: {report['summary']['hit_at_k']:.4f}",
+        f"- precision@k: {report['summary']['precision_at_k']:.4f}",
+        f"- recall@k: {report['summary']['recall_at_k']:.4f}",
+        f"- mrr: {report['summary']['mrr']:.4f}",
+        f"- ndcg@k: {report['summary']['ndcg_at_k']:.4f}",
+        f"- latency p50/p95(ms): {report['latency']['search_ms_p50']:.2f}/{report['latency']['search_ms_p95']:.2f}",
+        "",
+    ]
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(
         description="Compare memory-lancedb baseline vs openclaw-mem-assisted importance-gated ingest (proxy)."
@@ -404,6 +459,27 @@ def main() -> int:
         action="store_true",
         help="Also run an observational compression arm (derived dataset; text-shape proxy).",
     )
+    ap.add_argument(
+        "--include-hybrid",
+        action="store_true",
+        help="Build a third arm by fusing two experimental policy reports (must -> must+nice).",
+    )
+    ap.add_argument("--hybrid-must-policy", choices=["must", "must+nice"], default="must")
+    ap.add_argument("--hybrid-fallback-policy", choices=["must", "must+nice"], default="must+nice")
+    ap.add_argument("--hybrid-min-must-count", type=int, default=3)
+    ap.add_argument("--hybrid-stage2-max-additional", type=int, default=20)
+    ap.add_argument(
+        "--hybrid-stage2-max-ms",
+        type=float,
+        default=600.0,
+        help="Set <=0 to disable the stage2 latency cap.",
+    )
+    ap.add_argument(
+        "--hybrid-fusion-mode",
+        choices=["append_fill", "rrf_fusion"],
+        default="append_fill",
+    )
+    ap.add_argument("--hybrid-k-rrf", type=float, default=60.0)
     args = ap.parse_args()
 
     repo_root = Path(__file__).resolve().parents[1]
@@ -506,6 +582,79 @@ def main() -> int:
             }
         )
 
+    hybrid: dict[str, Any] | None = None
+    if args.include_hybrid:
+        by_policy = {cand["policy"]: cand for cand in candidates}
+        must_candidate = by_policy.get(args.hybrid_must_policy)
+        fallback_candidate = by_policy.get(args.hybrid_fallback_policy)
+        if must_candidate is None or fallback_candidate is None:
+            raise ValueError(
+                "--include-hybrid requires both policies in --policies; "
+                f"missing must={args.hybrid_must_policy!r} or fallback={args.hybrid_fallback_policy!r}."
+            )
+
+        must_report_payload = _load_json(Path(must_candidate["report"]["report_path"]))
+        fallback_report_payload = _load_json(Path(fallback_candidate["report"]["report_path"]))
+        stage2_max_ms = float(args.hybrid_stage2_max_ms) if args.hybrid_stage2_max_ms > 0 else None
+
+        hybrid_run_id = f"{run_group}-hybrid"
+        hybrid_report, hybrid_extra = build_two_stage_hybrid_report(
+            must_report=must_report_payload,
+            fallback_report=fallback_report_payload,
+            run_id=hybrid_run_id,
+            manifest={
+                "experiment": {
+                    "arm": "hybrid",
+                    "must_policy": args.hybrid_must_policy,
+                    "fallback_policy": args.hybrid_fallback_policy,
+                    "must_report_path": must_candidate["report"]["report_path"],
+                    "fallback_report_path": fallback_candidate["report"]["report_path"],
+                    "mode": "must_count_gate",
+                    "fusion_mode": args.hybrid_fusion_mode,
+                    "k_rrf": (float(args.hybrid_k_rrf) if args.hybrid_fusion_mode == "rrf_fusion" else None),
+                    "min_must_count": int(args.hybrid_min_must_count),
+                    "stage2_max_additional": int(args.hybrid_stage2_max_additional),
+                    "stage2_max_ms": stage2_max_ms,
+                }
+            },
+            min_must_count=int(args.hybrid_min_must_count),
+            stage2_max_additional=int(args.hybrid_stage2_max_additional),
+            stage2_max_ms=stage2_max_ms,
+            fusion_mode=args.hybrid_fusion_mode,
+            k_rrf=float(args.hybrid_k_rrf),
+        )
+
+        hybrid_dir = run_dir / "hybrid"
+        hybrid_dir.mkdir(parents=True, exist_ok=True)
+        hybrid_json = hybrid_dir / "retrieval-report.json"
+        hybrid_json.write_text(json.dumps(hybrid_report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        hybrid_md = hybrid_dir / "retrieval-report.md"
+        _write_hybrid_markdown(
+            path=hybrid_md,
+            run_id=hybrid_run_id,
+            report=hybrid_report,
+            stage_counts=hybrid_extra.get("stage_counts", {}),
+            must_policy=args.hybrid_must_policy,
+            fallback_policy=args.hybrid_fallback_policy,
+        )
+
+        hybrid = {
+            "mode": "must_count_gate",
+            "fusion_mode": args.hybrid_fusion_mode,
+            "must_policy": args.hybrid_must_policy,
+            "fallback_policy": args.hybrid_fallback_policy,
+            "report": {
+                "label": "hybrid",
+                "report_path": str(hybrid_json),
+                "summary": hybrid_report["summary"],
+                "latency": hybrid_report["latency"],
+                "top_k": hybrid_report["top_k"],
+                "manifest": hybrid_report.get("manifest"),
+            },
+            "stage_counts": hybrid_extra.get("stage_counts", {}),
+            "md_path": str(hybrid_md),
+        }
+
     baseline_metrics = _metric_pack(baseline)
     curve: list[dict[str, Any]] = []
     for cand in candidates:
@@ -522,24 +671,28 @@ def main() -> int:
             }
         )
 
+    hybrid_tradeoff: dict[str, Any] | None = None
+    if hybrid is not None:
+        hybrid_metrics = _metric_pack(hybrid["report"])
+        delta = {k: hybrid_metrics[k] - baseline_metrics[k] for k in baseline_metrics}
+        hybrid_tradeoff = {
+            "policy": "hybrid",
+            "baseline": baseline_metrics,
+            "hybrid": hybrid_metrics,
+            "delta_hybrid_minus_baseline": delta,
+            "stage_counts": hybrid["stage_counts"],
+            "mode": hybrid["mode"],
+            "fusion_mode": hybrid["fusion_mode"],
+        }
+
     # Win criteria (GTM/falsification ready):
     # Pass if p95 improves >=20% while recall drop <=3pp and nDCG non-negative.
     wins: list[dict[str, Any]] = []
     for row in curve:
-        b = row["baseline"]
-        e = row["experimental"]
-        p95_gain = (b["search_ms_p95"] - e["search_ms_p95"]) / b["search_ms_p95"] if b["search_ms_p95"] else 0.0
-        recall_drop = b["recall_at_k"] - e["recall_at_k"]
-        ndcg_delta = e["ndcg_at_k"] - b["ndcg_at_k"]
-        wins.append(
-            {
-                "policy": row["policy"],
-                "win": bool(p95_gain >= 0.20 and recall_drop <= 0.03 and ndcg_delta >= 0.0),
-                "p95_gain_ratio": p95_gain,
-                "recall_drop_abs": recall_drop,
-                "ndcg_delta": ndcg_delta,
-            }
-        )
+        wins.append(_win_eval(baseline=row["baseline"], candidate=row["experimental"], policy=row["policy"]))
+
+    if hybrid_tradeoff is not None:
+        wins.append(_win_eval(baseline=baseline_metrics, candidate=hybrid_tradeoff["hybrid"], policy="hybrid"))
 
     arms: dict[str, Any] = {
         "baseline": baseline,
@@ -547,9 +700,11 @@ def main() -> int:
     }
     if observational is not None:
         arms["observational"] = observational
+    if hybrid is not None:
+        arms["hybrid"] = hybrid
 
     compare = {
-        "schema": "openclaw-memory-bench/phase-ab-compare-report/v0.2",
+        "schema": "openclaw-memory-bench/phase-ab-compare-report/v0.3",
         "run_group": run_group,
         "created_at_utc": datetime.now(UTC).isoformat(),
         "manifest": {
@@ -565,10 +720,11 @@ def main() -> int:
                 "gateway_url": args.gateway_url,
                 "lancedb_recall_limit_factor": args.lancedb_recall_limit_factor,
             },
-            "limitation": "Experimental arm is proxy-mode derived dataset filtering (no live openclaw-mem adapter chaining yet).",
+            "limitation": "Experimental + hybrid arms are proxy-mode derived dataset fusion (no live openclaw-mem adapter chaining yet).",
         },
         "arms": arms,
         "tradeoff_curve": curve,
+        "hybrid_tradeoff": hybrid_tradeoff,
         "win_interpretation": {
             "rule": "win if p95 improves >=20% and recall drop <=0.03 and nDCG delta >=0",
             "results": wins,
@@ -617,10 +773,13 @@ def main() -> int:
             ]
         )
 
+    win_by_policy = {str(row.get("policy") or ""): row for row in wins}
+
     lines.append("## Experimental tradeoff rows")
 
-    for row, win in zip(curve, wins, strict=True):
+    for row in curve:
         d = row["delta_experimental_minus_baseline"]
+        win = win_by_policy.get(str(row["policy"]), {})
         lines.extend(
             [
                 f"### policy={row['policy']}",
@@ -631,7 +790,23 @@ def main() -> int:
                 f"- Δ mrr: {d['mrr']:+.4f}",
                 f"- Δ ndcg@k: {d['ndcg_at_k']:+.4f}",
                 f"- Δ p50/p95(ms): {d['search_ms_p50']:+.2f}/{d['search_ms_p95']:+.2f}",
-                f"- win rule pass: {win['win']} (p95_gain={win['p95_gain_ratio']:.3f}, recall_drop={win['recall_drop_abs']:.3f})",
+                f"- win rule pass: {win.get('win')} (p95_gain={win.get('p95_gain_ratio', 0.0):.3f}, recall_drop={win.get('recall_drop_abs', 0.0):.3f})",
+                "",
+            ]
+        )
+
+    if hybrid_tradeoff is not None:
+        d = hybrid_tradeoff["delta_hybrid_minus_baseline"]
+        win = win_by_policy.get("hybrid", {})
+        lines.extend(
+            [
+                "## Hybrid arm tradeoff",
+                f"- mode/fusion: {hybrid_tradeoff['mode']}/{hybrid_tradeoff['fusion_mode']}",
+                f"- stage2 used/skipped/not-triggered: {hybrid_tradeoff['stage_counts'].get('stage2_used', 0)}/{hybrid_tradeoff['stage_counts'].get('stage2_skipped_budget', 0)}/{hybrid_tradeoff['stage_counts'].get('stage2_not_triggered', 0)}",
+                f"- Δ recall@k: {d['recall_at_k']:+.4f}",
+                f"- Δ ndcg@k: {d['ndcg_at_k']:+.4f}",
+                f"- Δ p95(ms): {d['search_ms_p95']:+.2f}",
+                f"- win rule pass: {win.get('win')} (p95_gain={win.get('p95_gain_ratio', 0.0):.3f}, recall_drop={win.get('recall_drop_abs', 0.0):.3f})",
                 "",
             ]
         )
@@ -672,6 +847,7 @@ def main() -> int:
                 "baseline_report": baseline["report_path"],
                 "observational_report": (observational["report"]["report_path"] if observational is not None else None),
                 "experimental_reports": [x["report"]["report_path"] for x in candidates],
+                "hybrid_report": (hybrid["report"]["report_path"] if hybrid is not None else None),
             },
             ensure_ascii=False,
             indent=2,
