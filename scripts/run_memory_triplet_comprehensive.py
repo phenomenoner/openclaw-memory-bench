@@ -300,6 +300,15 @@ def main() -> int:
         json.dumps(dataset_meta, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
 
+    openclaw_mem_cfg: dict[str, Any] = {
+        "db_root": args.openclaw_mem_db_root,
+    }
+    openclaw_mem_project = os.environ.get("OPENCLAW_MEM_PROJECT") or os.environ.get(
+        "OPENCLAW_MEM_PROJECT_DIR"
+    )
+    if openclaw_mem_project:
+        openclaw_mem_cfg["openclaw_mem_project"] = openclaw_mem_project
+
     provider_specs: list[tuple[str, dict[str, Any], bool]] = [
         (
             "memory-core",
@@ -326,10 +335,7 @@ def main() -> int:
         ),
         (
             "openclaw-mem",
-            {
-                "db_root": args.openclaw_mem_db_root,
-                "openclaw_mem_project": "/home/agent/.openclaw/workspace/openclaw-mem",
-            },
+            openclaw_mem_cfg,
             False,
         ),
     ]

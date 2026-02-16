@@ -41,11 +41,20 @@ class OpenClawMemAdapter:
             if shutil.which("openclaw-mem"):
                 self.command_base = ["openclaw-mem"]
             else:
-                # Fallback for workspace-local development setup.
-                project = str(
+                # Portable fallback: require an explicit project path (config or env).
+                # This avoids hardcoding host-specific directories.
+                project = (
                     config.get("openclaw_mem_project")
-                    or "/home/agent/.openclaw/workspace/openclaw-mem"
+                    or os.environ.get("OPENCLAW_MEM_PROJECT")
+                    or os.environ.get("OPENCLAW_MEM_PROJECT_DIR")
                 )
+                if not project:
+                    raise RuntimeError(
+                        "openclaw-mem adapter requires `openclaw-mem` on PATH, or an explicit project path via "
+                        "--openclaw-mem-project / provider_config.openclaw_mem_project / $OPENCLAW_MEM_PROJECT."
+                    )
+
+                project = str(project)
                 self.command_base = [
                     "uv",
                     "run",

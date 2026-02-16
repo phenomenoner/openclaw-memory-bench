@@ -91,7 +91,8 @@ def cmd_run_retrieval(args: argparse.Namespace) -> int:
         if args.db_path:
             provider_config["db_path"] = args.db_path
         provider_config["db_root"] = args.db_root
-        provider_config["openclaw_mem_project"] = args.openclaw_mem_project
+        if args.openclaw_mem_project:
+            provider_config["openclaw_mem_project"] = args.openclaw_mem_project
         if args.openclaw_mem_cmd:
             provider_config["command_base"] = args.openclaw_mem_cmd
 
@@ -232,8 +233,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     run.add_argument(
         "--openclaw-mem-project",
-        default="/home/agent/.openclaw/workspace/openclaw-mem",
-        help="(openclaw-mem) project path for uv fallback",
+        default=None,
+        help=(
+            "(openclaw-mem) project path for uv fallback (only used when openclaw-mem is not on PATH). "
+            "Alternatively set $OPENCLAW_MEM_PROJECT."
+        ),
     )
     run.add_argument(
         "--openclaw-mem-cmd",

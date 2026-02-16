@@ -119,12 +119,19 @@ def main() -> int:
         run_group=run_group,
     )
 
+    openclaw_mem_cfg = {
+        "db_root": args.openclaw_mem_db_root,
+    }
+    # Optional: only needed when `openclaw-mem` is not on PATH.
+    openclaw_mem_project = os.environ.get("OPENCLAW_MEM_PROJECT") or os.environ.get(
+        "OPENCLAW_MEM_PROJECT_DIR"
+    )
+    if openclaw_mem_project:
+        openclaw_mem_cfg["openclaw_mem_project"] = openclaw_mem_project
+
     openclaw_mem_report = _run_provider(
         provider="openclaw-mem",
-        provider_config={
-            "db_root": args.openclaw_mem_db_root,
-            "openclaw_mem_project": "/home/agent/.openclaw/workspace/openclaw-mem",
-        },
+        provider_config=openclaw_mem_cfg,
         dataset_path=dataset_path,
         top_k=args.top_k,
         question_limit=args.question_limit,

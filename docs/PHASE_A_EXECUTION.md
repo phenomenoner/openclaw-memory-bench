@@ -23,7 +23,11 @@ Default baseline:
 ## Run command
 
 ```bash
-cd /home/agent/.openclaw/workspace/openclaw-memory-bench
+# Run from your local checkout of the repo.
+# Example (OpenClaw host default workspace):
+#   cd /root/.openclaw/workspace/openclaw-memory-bench
+cd /path/to/openclaw-memory-bench
+
 scripts/run_two_plugin_baseline.sh \
   --profile configs/run-profiles/two-plugin-baseline.json
 ```
