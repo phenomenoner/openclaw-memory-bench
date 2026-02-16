@@ -2,6 +2,8 @@ import json
 import subprocess
 from pathlib import Path
 
+import pytest
+
 from openclaw_memory_bench.adapters.qmd import QmdAdapter
 
 
@@ -68,3 +70,51 @@ def test_search_maps_non_empty_fixture_payload(monkeypatch) -> None:
     assert [h.metadata["session_id"] for h in hits] == ["s-alpha-1", "s-beta-9", "s-gamma-2"]
     assert [h.content for h in hits] == ["alpha snippet", "beta summary", "gamma content"]
     assert [h.score for h in hits] == [0.91, 0.47, 0.0]
+
+
+def test_search_raises_in_strict_mode_on_nonzero_exit(monkeypatch) -> None:
+    adapter = QmdAdapter()
+    adapter.initialize({"qmd_cmd": ["/usr/local/bin/qmd"], "strict": True})
+
+    def _failed(*args, **kwargs):
+        return subprocess.CompletedProcess(args=["qmd"], returncode=2, stdout="oops", stderr="boom")
+
+    monkeypatch.setattr(subprocess, "run", _failed)
+
+    with pytest.raises(RuntimeError, match=r"qmd query failed \(exit=2\)"):
+        adapter.search("hello", container_tag="t1", limit=5)
+
+
+def test_search_wires_query_command_limit_and_extra_args(monkeypatch) -> None:
+    adapter = QmdAdapter()
+    adapter.initialize(
+        {
+            "qmd_cmd": ["/usr/local/bin/qmd"],
+            "qmd_query_extra_args": ["--container", "bench", "--profile", "hybrid"],
+        }
+    )
+
+    captured: dict[str, object] = {}
+
+    def _ok(cmd, *args, **kwargs):
+        captured["cmd"] = cmd
+        captured["timeout"] = kwargs.get("timeout")
+        return subprocess.CompletedProcess(args=cmd, returncode=0, stdout='{"results": []}', stderr="")
+
+    monkeypatch.setattr(subprocess, "run", _ok)
+
+    hits = adapter.search("who is alpha", container_tag="t1", limit=7)
+    assert hits == []
+    assert captured["cmd"] == [
+        "/usr/local/bin/qmd",
+        "query",
+        "--json",
+        "who is alpha",
+        "--limit",
+        "7",
+        "--container",
+        "bench",
+        "--profile",
+        "hybrid",
+    ]
+    assert captured["timeout"] == 20
