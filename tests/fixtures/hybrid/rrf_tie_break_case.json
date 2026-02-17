@@ -1,0 +1,41 @@
+{
+  "must_report": {
+    "run_id": "fixture-must",
+    "dataset": "hybrid-fixture",
+    "top_k": 4,
+    "results": [
+      {
+        "question_id": "q1",
+        "question": "Which memories should rank first?",
+        "question_type": "profile",
+        "ground_truth": "a+b+x",
+        "relevant_session_ids": ["a", "b", "x"],
+        "retrieved_session_ids": ["b", "x", "a"],
+        "retrieved_scores": [0.91, 0.87, 0.83],
+        "latency_ms": 31.0
+      }
+    ]
+  },
+  "fallback_report": {
+    "run_id": "fixture-fallback",
+    "dataset": "hybrid-fixture",
+    "top_k": 4,
+    "results": [
+      {
+        "question_id": "q1",
+        "question": "Which memories should rank first?",
+        "question_type": "profile",
+        "ground_truth": "a+b+x",
+        "relevant_session_ids": ["a", "b", "x"],
+        "retrieved_session_ids": ["a", "z", "b"],
+        "retrieved_scores": [0.99, 0.5, 0.4],
+        "latency_ms": 19.0
+      }
+    ]
+  },
+  "expected": {
+    "rrf_ranked_top4": ["a", "b", "x", "z"],
+    "append_fill_ranked_top4": ["b", "x", "a", "z"],
+    "stage2_added_count": 1
+  }
+}
