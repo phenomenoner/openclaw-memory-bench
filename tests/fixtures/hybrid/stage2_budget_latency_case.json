@@ -1,0 +1,109 @@
+{
+  "must_report": {
+    "run_id": "fixture-must-gate",
+    "dataset": "hybrid-fixture-gate",
+    "top_k": 4,
+    "results": [
+      {
+        "question_id": "q-used",
+        "question": "Should stage-2 be used when under threshold and within latency budget?",
+        "question_type": "profile",
+        "ground_truth": "m1+f1",
+        "relevant_session_ids": ["m1", "f1"],
+        "retrieved_session_ids": ["m1"],
+        "retrieved_scores": [0.9],
+        "latency_ms": 30.0
+      },
+      {
+        "question_id": "q-skipped",
+        "question": "Should stage-2 be skipped when fallback exceeds latency budget?",
+        "question_type": "profile",
+        "ground_truth": "m2+f2",
+        "relevant_session_ids": ["m2", "f2"],
+        "retrieved_session_ids": ["m2"],
+        "retrieved_scores": [0.88],
+        "latency_ms": 40.0
+      },
+      {
+        "question_id": "q-no-trigger",
+        "question": "Should stage-2 stay off when must already meets threshold?",
+        "question_type": "profile",
+        "ground_truth": "m3+m4",
+        "relevant_session_ids": ["m3", "m4"],
+        "retrieved_session_ids": ["m3", "m4"],
+        "retrieved_scores": [0.87, 0.86],
+        "latency_ms": 12.0
+      }
+    ]
+  },
+  "fallback_report": {
+    "run_id": "fixture-fallback-gate",
+    "dataset": "hybrid-fixture-gate",
+    "top_k": 4,
+    "results": [
+      {
+        "question_id": "q-used",
+        "question": "Should stage-2 be used when under threshold and within latency budget?",
+        "question_type": "profile",
+        "ground_truth": "m1+f1",
+        "relevant_session_ids": ["m1", "f1"],
+        "retrieved_session_ids": ["f1", "m1", "f9"],
+        "retrieved_scores": [0.95, 0.7, 0.6],
+        "latency_ms": 15.0
+      },
+      {
+        "question_id": "q-skipped",
+        "question": "Should stage-2 be skipped when fallback exceeds latency budget?",
+        "question_type": "profile",
+        "ground_truth": "m2+f2",
+        "relevant_session_ids": ["m2", "f2"],
+        "retrieved_session_ids": ["f2", "m2", "f8"],
+        "retrieved_scores": [0.94, 0.69, 0.55],
+        "latency_ms": 45.0
+      },
+      {
+        "question_id": "q-no-trigger",
+        "question": "Should stage-2 stay off when must already meets threshold?",
+        "question_type": "profile",
+        "ground_truth": "m3+m4",
+        "relevant_session_ids": ["m3", "m4"],
+        "retrieved_session_ids": ["f3", "f4"],
+        "retrieved_scores": [0.5, 0.49],
+        "latency_ms": 11.0
+      }
+    ]
+  },
+  "expected": {
+    "stage_counts": {
+      "stage2_used": 1,
+      "stage2_skipped_budget": 1,
+      "stage2_not_triggered": 1
+    },
+    "rows": {
+      "q-used": {
+        "retrieved_session_ids": ["m1", "f1"],
+        "stage2_used": true,
+        "stage2_skipped_budget": false,
+        "stage2_candidates_considered": 1,
+        "stage2_added_count": 1,
+        "latency_ms": 45.0
+      },
+      "q-skipped": {
+        "retrieved_session_ids": ["m2"],
+        "stage2_used": false,
+        "stage2_skipped_budget": true,
+        "stage2_candidates_considered": 0,
+        "stage2_added_count": 0,
+        "latency_ms": 40.0
+      },
+      "q-no-trigger": {
+        "retrieved_session_ids": ["m3", "m4"],
+        "stage2_used": false,
+        "stage2_skipped_budget": false,
+        "stage2_candidates_considered": 0,
+        "stage2_added_count": 0,
+        "latency_ms": 12.0
+      }
+    }
+  }
+}
