@@ -1,6 +1,6 @@
 # Phase A/B Milestone Report — LongMemEval-50 (Draft)
 
-- Updated: 2026-02-17 19:25 Asia/Taipei
+- Updated: 2026-02-19 02:08 Asia/Taipei
 - Status: Draft (LongMemEval-50 artifact-backed narrative + hybrid compare contract `v0.3`)
 
 ## Goal
@@ -67,6 +67,15 @@ This report is redaction-safe: aggregate metrics only, no raw private memory pay
 
 Interpretation: this smoke run validates **wiring + schema contract**, not final quality/latency posture for LongMemEval-50.
 
+## Hybrid stage2 latency-cap sensitivity (focused smoke)
+Reference artifact: `REPORTS/hybrid-stage2-cap-sensitivity-smoke-q2-s8.md`
+
+- tight cap (`--hybrid-stage2-max-ms 20`): stage2 `0/2/0`, hybrid p95 `303.28 ms` (Δ `+1.53 ms`)
+- default cap (`--hybrid-stage2-max-ms 600`): stage2 `2/0/0`, hybrid p95 `524.15 ms` (Δ `+239.73 ms`)
+- cap off (`--hybrid-stage2-max-ms 0`): stage2 `2/0/0`, hybrid p95 `561.50 ms` (Δ `+287.51 ms`)
+
+Interpretation: stage2 latency cap is a meaningful safety knob for controlling p95 explosion while preserving the compare contract receipts (`stage2_used` vs `stage2_skipped_budget`).
+
 ## Interpretation (tight)
 - `must` compresses aggressively and materially degrades retrieval quality; not viable for this milestone objective.
 - `must+nice` mostly preserves corpus size and improves quality metrics, but still increases latency enough to fail the current win rule.
@@ -78,6 +87,7 @@ Interpretation: this smoke run validates **wiring + schema contract**, not final
 - Select `must+nice` as a candidate only if CK accepts relaxed operational constraints (allowing +17.95 ms p95 and +15.66/17.95 ms latency uplift on LongMemEval-50).
 - This arm preserves quality most (`+0.0204` hit / `+0.0667` nDCG / `+0.0829` mRR) but still fails the strict win rule (`p95_gain=-0.080`, `recall_drop=-0.020`).
 - Practical action: keep as experimental, no auto-default yet; monitor recall drift on larger slices.
+- If hybrid stays in evaluation, pin an explicit stage2 latency cap (start from tight budget) and treat `stage2_skipped_budget` as a tracked receipt.
 
 ### Option 2 — latency-first (freeze baseline by default)
 - Keep baseline as default (`0` compression policy) because both filtered arms violate latency/recall rule under current gate.
