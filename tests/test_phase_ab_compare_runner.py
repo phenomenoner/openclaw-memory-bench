@@ -3,6 +3,10 @@ from __future__ import annotations
 import importlib.util
 import json
 from pathlib import Path
+from typing import Any
+
+
+_HYBRID_GATE_FIXTURE_PATH = Path(__file__).parent / "fixtures" / "hybrid" / "stage2_budget_latency_case.json"
 
 
 def _load_runner_module():
@@ -13,6 +17,10 @@ def _load_runner_module():
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+def _load_hybrid_gate_fixture() -> dict[str, Any]:
+    return json.loads(_HYBRID_GATE_FIXTURE_PATH.read_text(encoding="utf-8"))
 
 
 def test_resolve_run_group_slug() -> None:
@@ -272,6 +280,187 @@ def test_main_can_build_hybrid_arm(monkeypatch, tmp_path, capsys) -> None:
     compare = json.loads(compare_json.read_text(encoding="utf-8"))
     assert compare["schema"].endswith("v0.3")
     assert compare["arms"]["hybrid"]["stage_counts"]["stage2_used"] == 1
+
+    stdout = capsys.readouterr().out
+    payload = json.loads(stdout)
+    assert payload["hybrid_report"] is not None
+
+
+def test_main_hybrid_stage2_budget_counts_when_latency_cap_enforced(monkeypatch, tmp_path, capsys) -> None:
+    runner = _load_runner_module()
+
+    fixture = _load_hybrid_gate_fixture()
+
+    dataset_path = tmp_path / "dataset.json"
+    dataset_path.write_text(
+        json.dumps(
+            {
+                "name": "mini-hybrid-gate",
+                "questions": [
+                    {
+                        "question_id": "q1",
+                        "question": "What should we remember?",
+                        "question_type": "profile",
+                        "ground_truth": "s1+s2",
+                        "sessions": [
+                            {
+                                "session_id": "s1",
+                                "messages": [{"role": "user", "content": "must remember this."}],
+                                "metadata": {"importance": "must"},
+                            },
+                            {
+                                "session_id": "s2",
+                                "messages": [{"role": "user", "content": "preference note."}],
+                                "metadata": {"importance": "nice"},
+                            },
+                        ],
+                        "relevant_session_ids": ["s1", "s2"],
+                    }
+                ],
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    out_root = tmp_path / "out"
+
+    def _summary_from_results(results: list[dict[str, Any]]) -> dict[str, Any]:
+        count = len(results)
+        mean_latency = sum(float(r.get("latency_ms") or 0.0) for r in results) / float(count or 1)
+        return {
+            "summary": {
+                "questions_total": count,
+                "questions_succeeded": count,
+                "questions_failed": 0,
+                "hit_at_k": 1.0,
+                "precision_at_k": 1.0,
+                "recall_at_k": 1.0,
+                "mrr": 1.0,
+                "ndcg_at_k": 1.0,
+                "failure_breakdown": {"by_code": {}, "by_category": {}, "by_phase": {}},
+            },
+            "latency": {
+                "search_ms_p50": mean_latency,
+                "search_ms_p95": mean_latency,
+                "search_ms_mean": mean_latency,
+            },
+        }
+
+    def _write_stub_payload(*, report_path: Path, run_suffix: str) -> dict[str, Any]:
+        if run_suffix == "baseline":
+            payload = {
+                "schema": "openclaw-memory-bench/retrieval-report/v0.2",
+                "run_id": "deterministic-baseline",
+                "provider": "memory-lancedb",
+                "dataset": "mini-hybrid-gate",
+                "top_k": 4,
+                "created_at_utc": "2026-02-18T00:00:00Z",
+                "results": [
+                    {
+                        "question_id": "q-baseline",
+                        "question": "baseline",
+                        "question_type": "profile",
+                        "ground_truth": "s1",
+                        "relevant_session_ids": ["s1"],
+                        "retrieved_session_ids": ["s1"],
+                        "retrieved_scores": [1.0],
+                        "retrieved_observation_ids": [],
+                        "retrieved_sources": [],
+                        "latency_ms": 100.0,
+                        "metrics": {
+                            "hit_at_k": 1.0,
+                            "precision_at_k": 1.0,
+                            "recall_at_k": 1.0,
+                            "mrr": 1.0,
+                            "ndcg_at_k": 1.0,
+                        },
+                    }
+                ],
+                "failures": [],
+            }
+        elif run_suffix == "experimental-must":
+            payload = {
+                "schema": "openclaw-memory-bench/retrieval-report/v0.2",
+                "provider": "memory-lancedb",
+                "created_at_utc": "2026-02-18T00:00:00Z",
+                "failures": [],
+                **fixture["must_report"],
+            }
+        elif run_suffix == "experimental-must+nice":
+            payload = {
+                "schema": "openclaw-memory-bench/retrieval-report/v0.2",
+                "provider": "memory-lancedb",
+                "created_at_utc": "2026-02-18T00:00:00Z",
+                "failures": [],
+                **fixture["fallback_report"],
+            }
+        else:
+            raise AssertionError(f"unexpected run_suffix: {run_suffix}")
+
+        metrics = _summary_from_results(payload["results"])
+        payload["summary"] = metrics["summary"]
+        payload["latency"] = metrics["latency"]
+        report_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        return payload
+
+    def _fake_run_lancedb(**kwargs):
+        run_suffix = kwargs["run_suffix"]
+        report_path = Path(kwargs["out_dir"]) / run_suffix / "retrieval-report.json"
+        report_path.parent.mkdir(parents=True, exist_ok=True)
+
+        payload = _write_stub_payload(report_path=report_path, run_suffix=run_suffix)
+
+        return {
+            "label": run_suffix,
+            "report_path": str(report_path),
+            "summary": payload["summary"],
+            "latency": {
+                "search_ms_p50": payload["latency"]["search_ms_p50"],
+                "search_ms_p95": payload["latency"]["search_ms_p95"],
+            },
+            "top_k": kwargs["top_k"],
+            "manifest": {"stub": True},
+        }
+
+    monkeypatch.setattr(runner, "_run_lancedb", _fake_run_lancedb)
+
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "runner",
+            "--dataset",
+            str(dataset_path),
+            "--output-root",
+            str(out_root),
+            "--run-group",
+            "Deterministic Hybrid Gate",
+            "--policies",
+            "must",
+            "must+nice",
+            "--include-hybrid",
+            "--hybrid-min-must-count",
+            "2",
+            "--hybrid-stage2-max-additional",
+            "1",
+            "--hybrid-stage2-max-ms",
+            "20",
+        ],
+    )
+
+    assert runner.main() == 0
+
+    run_group = "deterministic-hybrid-gate"
+    compare_json = out_root / run_group / f"compare-{run_group}.json"
+    compare = json.loads(compare_json.read_text(encoding="utf-8"))
+
+    stage_counts = compare["arms"]["hybrid"]["stage_counts"]
+    expected = fixture["expected"]["stage_counts"]
+    assert stage_counts["stage2_used"] == expected["stage2_used"]
+    assert stage_counts["stage2_skipped_budget"] == expected["stage2_skipped_budget"]
+    assert stage_counts["stage2_not_triggered"] == expected["stage2_not_triggered"]
 
     stdout = capsys.readouterr().out
     payload = json.loads(stdout)
