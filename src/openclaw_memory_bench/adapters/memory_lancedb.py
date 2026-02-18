@@ -29,12 +29,14 @@ class MemoryLanceDBAdapter:
         self.config: dict[str, Any] = {}
         self.session_key = "main"
         self.recall_limit_factor = 10
+        self.probe_on_unknown_clear = True
         self._container_ids: dict[str, list[str]] = {}
 
     def initialize(self, config: dict) -> None:
         self.config = dict(config)
         self.session_key = str(config.get("session_key") or "main")
         self.recall_limit_factor = int(config.get("recall_limit_factor") or 10)
+        self.probe_on_unknown_clear = bool(config.get("probe_on_unknown_clear", True))
 
     @staticmethod
     def _container_marker(container_tag: str) -> str:
@@ -64,7 +66,7 @@ class MemoryLanceDBAdapter:
         ids = list(self._container_ids.get(container_tag, []))
 
         # Best-effort fallback in case state was partially lost.
-        if not ids:
+        if not ids and self.probe_on_unknown_clear:
             marker = self._container_marker(container_tag)
             res = self._invoke("memory_recall", {"query": marker, "limit": 200})
             for mem in self._extract_memories(res):

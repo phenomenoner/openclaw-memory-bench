@@ -297,12 +297,14 @@ def _run_lancedb(
     gateway_url: str | None,
     gateway_token: str | None,
     recall_limit_factor: int,
+    probe_on_unknown_clear: bool,
     extra_manifest_fields: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     provider = "memory-lancedb"
     provider_config: dict[str, Any] = {
         "session_key": session_key,
         "recall_limit_factor": recall_limit_factor,
+        "probe_on_unknown_clear": probe_on_unknown_clear,
     }
     if gateway_url:
         provider_config["gateway_url"] = gateway_url
@@ -435,6 +437,14 @@ def main() -> int:
     ap.add_argument("--gateway-url", default=None)
     ap.add_argument("--gateway-token", default=None)
     ap.add_argument("--lancedb-recall-limit-factor", type=int, default=10)
+    ap.add_argument(
+        "--lancedb-probe-on-unknown-clear",
+        action="store_true",
+        help=(
+            "Enable fallback memory_recall probe when clear() has no tracked ids. "
+            "Default is disabled in this compare runner to avoid expensive no-op pre-clear probes."
+        ),
+    )
     ap.add_argument("--run-label", default="phase-ab-lancedb-vs-openclaw-mem-assist")
     ap.add_argument(
         "--run-group",
@@ -503,6 +513,7 @@ def main() -> int:
         gateway_url=args.gateway_url,
         gateway_token=args.gateway_token,
         recall_limit_factor=args.lancedb_recall_limit_factor,
+        probe_on_unknown_clear=args.lancedb_probe_on_unknown_clear,
         extra_manifest_fields={"arm": "baseline", "ingest_policy": "all-sessions"},
     )
 
@@ -528,6 +539,7 @@ def main() -> int:
             gateway_url=args.gateway_url,
             gateway_token=args.gateway_token,
             recall_limit_factor=args.lancedb_recall_limit_factor,
+            probe_on_unknown_clear=args.lancedb_probe_on_unknown_clear,
             extra_manifest_fields={
                 "arm": "observational",
                 "proxy_mode": "derived_dataset_observational_compression",
@@ -564,6 +576,7 @@ def main() -> int:
             gateway_url=args.gateway_url,
             gateway_token=args.gateway_token,
             recall_limit_factor=args.lancedb_recall_limit_factor,
+            probe_on_unknown_clear=args.lancedb_probe_on_unknown_clear,
             extra_manifest_fields={
                 "arm": "experimental",
                 "ingest_policy": policy,
@@ -719,6 +732,7 @@ def main() -> int:
                 "session_key": args.session_key,
                 "gateway_url": args.gateway_url,
                 "lancedb_recall_limit_factor": args.lancedb_recall_limit_factor,
+                "lancedb_probe_on_unknown_clear": args.lancedb_probe_on_unknown_clear,
             },
             "limitation": "Experimental + hybrid arms are proxy-mode derived dataset fusion (no live openclaw-mem adapter chaining yet).",
         },
