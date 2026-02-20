@@ -48,11 +48,15 @@ def resolve_gateway_config(overrides: dict | None = None) -> dict[str, str]:
     }
 
 
-def invoke_tool(*, tool: str, tool_args: dict, session_key: str = "main", config: dict | None = None) -> Any:
+def invoke_tool(
+    *, tool: str, tool_args: dict, session_key: str = "main", config: dict | None = None
+) -> Any:
     resolved = resolve_gateway_config(config)
     token = resolved["gateway_token"]
     if not token:
-        raise RuntimeError("Gateway token is required (OPENCLAW_GATEWAY_TOKEN or ~/.openclaw/openclaw.json)")
+        raise RuntimeError(
+            "Gateway token is required (OPENCLAW_GATEWAY_TOKEN or ~/.openclaw/openclaw.json)"
+        )
 
     url = resolved["gateway_url"] + "/tools/invoke"
     payload = {

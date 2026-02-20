@@ -6,7 +6,9 @@ from pathlib import Path
 from openclaw_memory_bench.hybrid import _rrf_merge, build_two_stage_hybrid_report
 
 _RRF_FIXTURE_PATH = Path(__file__).parent / "fixtures" / "hybrid" / "rrf_tie_break_case.json"
-_GATE_FIXTURE_PATH = Path(__file__).parent / "fixtures" / "hybrid" / "stage2_budget_latency_case.json"
+_GATE_FIXTURE_PATH = (
+    Path(__file__).parent / "fixtures" / "hybrid" / "stage2_budget_latency_case.json"
+)
 
 
 def _load_fixture(path: Path) -> dict:
@@ -84,7 +86,10 @@ def test_append_fill_respects_stage1_order_before_stage2_fill() -> None:
         fusion_mode="append_fill",
     )
 
-    assert report["results"][0]["retrieved_session_ids"] == fixture["expected"]["append_fill_ranked_top4"]
+    assert (
+        report["results"][0]["retrieved_session_ids"]
+        == fixture["expected"]["append_fill_ranked_top4"]
+    )
 
 
 def test_stage2_budget_and_latency_gate_receipts_from_fixture() -> None:
@@ -110,6 +115,9 @@ def test_stage2_budget_and_latency_gate_receipts_from_fixture() -> None:
         assert row["retrieved_session_ids"] == row_expected["retrieved_session_ids"]
         assert two_stage["stage2_used"] is row_expected["stage2_used"]
         assert two_stage["stage2_skipped_budget"] is row_expected["stage2_skipped_budget"]
-        assert two_stage["stage2_candidates_considered"] == row_expected["stage2_candidates_considered"]
+        assert (
+            two_stage["stage2_candidates_considered"]
+            == row_expected["stage2_candidates_considered"]
+        )
         assert two_stage["stage2_added_count"] == row_expected["stage2_added_count"]
         assert row["latency_ms"] == row_expected["latency_ms"]

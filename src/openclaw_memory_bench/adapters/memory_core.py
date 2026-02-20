@@ -281,7 +281,11 @@ class MemoryCoreAdapter:
     def _session_id_from_row(path: str | None, snippet: str | None) -> str | None:
         if path:
             name = Path(path).name
-            if name.startswith("session-") and name.endswith(".md") and "container_tag:" not in (snippet or ""):
+            if (
+                name.startswith("session-")
+                and name.endswith(".md")
+                and "container_tag:" not in (snippet or "")
+            ):
                 # Legacy filename format: session-<session_id>.md
                 return name[len("session-") : -len(".md")]
 

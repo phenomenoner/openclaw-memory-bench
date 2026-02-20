@@ -259,7 +259,9 @@ def run_retrieval_benchmark(
                     "relevant_session_ids": q.relevant_session_ids,
                     "retrieved_session_ids": retrieved_session_ids,
                     "retrieved_observation_ids": [h.id for h in hits],
-                    "retrieved_sources": [h.metadata.get("path") for h in hits if h.metadata.get("path")],
+                    "retrieved_sources": [
+                        h.metadata.get("path") for h in hits if h.metadata.get("path")
+                    ],
                     "ingest_result": ingest_result,
                     "latency_ms": dt_ms,
                     "metrics": asdict(metrics),
@@ -291,7 +293,9 @@ def run_retrieval_benchmark(
 
     qid_to_type = {q.question_id: q.question_type for q in questions}
     totals_by_type: Counter[str] = Counter(q.question_type for q in questions)
-    failed_by_type: Counter[str] = Counter(qid_to_type.get(f.get("question_id"), "unknown") for f in failures)
+    failed_by_type: Counter[str] = Counter(
+        qid_to_type.get(f.get("question_id"), "unknown") for f in failures
+    )
 
     rows_by_type: dict[str, list[dict]] = {}
     for row in results:

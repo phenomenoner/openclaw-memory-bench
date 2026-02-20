@@ -176,7 +176,9 @@ def convert_convomem(*, limit: int | None = None) -> dict:
                         sid = f"{qid}-session-{ci}"
                         msgs = [
                             _message(
-                                "user" if str(m.get("speaker", "")).lower() == "user" else "assistant",
+                                "user"
+                                if str(m.get("speaker", "")).lower() == "user"
+                                else "assistant",
                                 str(m.get("text") or ""),
                             )
                             for m in (conv.get("messages") or [])
@@ -184,10 +186,14 @@ def convert_convomem(*, limit: int | None = None) -> dict:
                         sessions.append({"session_id": sid, "messages": msgs, "metadata": {}})
 
                     evidence_texts = {
-                        str(x.get("text") or "") for x in (ev.get("message_evidences") or []) if x.get("text")
+                        str(x.get("text") or "")
+                        for x in (ev.get("message_evidences") or [])
+                        if x.get("text")
                     }
                     relevant = [
-                        s["session_id"] for s in sessions if _session_has_evidence_messages(s, evidence_texts)
+                        s["session_id"]
+                        for s in sessions
+                        if _session_has_evidence_messages(s, evidence_texts)
                     ]
                     if not relevant and sessions:
                         relevant = [sessions[0]["session_id"]]

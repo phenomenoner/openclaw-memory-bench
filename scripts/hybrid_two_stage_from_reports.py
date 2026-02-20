@@ -8,7 +8,9 @@ from openclaw_memory_bench.hybrid import build_two_stage_hybrid_report, load_rep
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Build a two-stage hybrid retrieval report from two reports.")
+    ap = argparse.ArgumentParser(
+        description="Build a two-stage hybrid retrieval report from two reports."
+    )
     ap.add_argument("--must-report", required=True)
     ap.add_argument("--fallback-report", required=True)
     ap.add_argument("--run-id", required=True)
@@ -33,7 +35,9 @@ def main() -> int:
     must_report = load_report(must_path)
     fallback_report = load_report(fallback_path)
 
-    stage2_max_ms = float(args.stage2_max_ms) if args.stage2_max_ms and args.stage2_max_ms > 0 else None
+    stage2_max_ms = (
+        float(args.stage2_max_ms) if args.stage2_max_ms and args.stage2_max_ms > 0 else None
+    )
 
     manifest = {
         "experiment": {
@@ -62,7 +66,9 @@ def main() -> int:
     )
 
     report_path = out_dir / "retrieval-report.json"
-    report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    report_path.write_text(
+        json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
 
     md_lines = [
         f"# Two-stage hybrid report ({args.run_id})",

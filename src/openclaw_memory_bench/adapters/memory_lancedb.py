@@ -60,7 +60,9 @@ class MemoryLanceDBAdapter:
         return []
 
     def _invoke(self, tool: str, args: dict) -> Any:
-        return invoke_tool(tool=tool, tool_args=args, session_key=self.session_key, config=self.config)
+        return invoke_tool(
+            tool=tool, tool_args=args, session_key=self.session_key, config=self.config
+        )
 
     def clear(self, container_tag: str) -> None:
         ids = list(self._container_ids.get(container_tag, []))

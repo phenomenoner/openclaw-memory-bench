@@ -48,7 +48,11 @@ def cmd_plan(args: argparse.Namespace) -> int:
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
-    print(json.dumps({"ok": True, "manifest": str(out), "run_id": run_id}, ensure_ascii=False, indent=2))
+    print(
+        json.dumps(
+            {"ok": True, "manifest": str(out), "run_id": run_id}, ensure_ascii=False, indent=2
+        )
+    )
     return 0
 
 
@@ -197,7 +201,9 @@ def build_parser() -> argparse.ArgumentParser:
     plan.add_argument("--out", default="artifacts/run-manifest.json")
     plan.set_defaults(func=cmd_plan)
 
-    prep = sub.add_parser("prepare-dataset", help="Download and convert canonical benchmark dataset")
+    prep = sub.add_parser(
+        "prepare-dataset", help="Download and convert canonical benchmark dataset"
+    )
     prep.add_argument("--benchmark", required=True, choices=["locomo", "longmemeval", "convomem"])
     prep.add_argument("--limit", type=int, default=None, help="Limit number of converted questions")
     prep.add_argument("--out", required=True, help="Output retrieval dataset JSON path")
@@ -246,7 +252,9 @@ def build_parser() -> argparse.ArgumentParser:
         help="(openclaw-mem) explicit command base override, e.g. openclaw-mem",
     )
     run.add_argument("--out", default=None, help="Output report path")
-    run.add_argument("--skip-ingest", action="store_true", help="Skip adapter ingest and search existing memory")
+    run.add_argument(
+        "--skip-ingest", action="store_true", help="Skip adapter ingest and search existing memory"
+    )
     run.add_argument(
         "--preindex-once",
         action="store_true",
@@ -304,8 +312,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     # memu-engine / gateway options
-    run.add_argument("--gateway-url", default=None, help="Gateway base URL (default from local config)")
-    run.add_argument("--gateway-token", default=None, help="Gateway token (default from env/config)")
+    run.add_argument(
+        "--gateway-url", default=None, help="Gateway base URL (default from local config)"
+    )
+    run.add_argument(
+        "--gateway-token", default=None, help="Gateway token (default from env/config)"
+    )
     run.add_argument("--agent-id", default="main", help="x-openclaw-agent-id header")
     run.add_argument("--session-key", default="main", help="sessionKey for tools/invoke")
     run.add_argument(

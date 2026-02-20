@@ -6,7 +6,7 @@ def test_extract_results_from_content_text_json() -> None:
         "content": [
             {
                 "type": "text",
-                "text": '{"results":[{"path":"/tmp/sessions/abc123.jsonl","snippet":"hello","score":0.9}]}'
+                "text": '{"results":[{"path":"/tmp/sessions/abc123.jsonl","snippet":"hello","score":0.9}]}',
             }
         ]
     }
