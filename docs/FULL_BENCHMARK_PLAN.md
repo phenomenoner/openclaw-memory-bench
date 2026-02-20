@@ -68,6 +68,44 @@ Required reporting:
 - If available from provider/tool payloads, include in compare artifact.
 - Current v0.2 retrieval reports do not provide tokenized cost telemetry; compare artifact records this as unavailable.
 
+## Counterfactual ON/OFF plan for the two pillars
+
+This section adds a falsifiable ON/OFF design while keeping current Phase A/B priorities intact.
+
+### Scope and sequencing
+- **Pillar A (execute now):** context pack contract hardening effects.
+- **Pillar B (pre-register now, execute later):** learning-record/self-improving loop effects.
+- Do not mix A and B rollout in the same implementation window.
+
+### Experimental arms
+- `A0/B0`: baseline behavior (current pack contract, no learning block).
+- `A1/B0`: Pillar A ON (contract hardening enabled).
+- `A0/B1`: Pillar B ON (reserved; spec only until Pillar A gate passes).
+- `A1/B1`: both ON (reserved for later confirmation run).
+
+For the current cycle, run only `A0/B0` vs `A1/B0`.
+
+### Metric definitions (anti-gaming, explicit)
+- **Recall@K / Precision@K / nDCG@K**:
+  - `K` must be fixed per run and written in manifest (`top_k`, default `10`).
+  - relevance source must be dataset `relevant_session_ids` (no post-hoc re-labeling).
+- **Citation coverage**:
+  - `1 - (included_without_citation_count / included_count)`.
+  - also report numerator/denominator explicitly.
+- **Rationale coverage**:
+  - `1 - (included_without_reason_count / included_count)`.
+- **Determinism pass rate**:
+  - For each fixed DB/query case, run 5 repeats and compare canonicalized JSON (excluding timestamp fields only).
+  - pass rate denominator must be number of distinct cases, not total runs.
+- **Budget exclusion rate**:
+  - `excluded_by_budget / total_candidates`.
+- **Latency p50/p95**:
+  - measured on the retrieval+pack path under the same runner/hardware profile recorded in manifest.
+
+### Decision posture
+- Treat this as a non-regression gate first (quality and determinism).
+- Only after Pillar A gate passes should Pillar B execution be scheduled.
+
 ## Reproducibility contract
 
 Each run package must include a manifest with:

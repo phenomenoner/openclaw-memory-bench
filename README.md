@@ -158,6 +158,8 @@ scripts/run_lancedb_vs_openclaw_mem_assisted.sh \
 
 Deterministic long-run profile (stable run-group path for reproducible reruns):
 
+For the counterfactual ON/OFF protocol (Pillar A execute now; Pillar B pre-registered), see `docs/FULL_BENCHMARK_PLAN.md#counterfactual-onoff-plan-for-the-two-pillars`.
+
 ```bash
 scripts/run_phase_ab_longmemeval50.sh
 # writes to artifacts/phase-ab-compare/phase-ab-longmemeval50-seed7-topk10/

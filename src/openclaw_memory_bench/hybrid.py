@@ -192,9 +192,15 @@ def build_two_stage_hybrid_report(
         if isinstance(rel_src, dict) and isinstance(rel_src.get("relevant_session_ids"), list):
             rel_ids = [str(x) for x in rel_src.get("relevant_session_ids") if str(x)]
 
-        must_ids = _coerce_str_list(must_row.get("retrieved_session_ids") if isinstance(must_row, dict) else None)
-        must_scores = _coerce_float_list(must_row.get("retrieved_scores") if isinstance(must_row, dict) else None)
-        must_latency = float(must_row.get("latency_ms") or 0.0) if isinstance(must_row, dict) else 0.0
+        must_ids = _coerce_str_list(
+            must_row.get("retrieved_session_ids") if isinstance(must_row, dict) else None
+        )
+        must_scores = _coerce_float_list(
+            must_row.get("retrieved_scores") if isinstance(must_row, dict) else None
+        )
+        must_latency = (
+            float(must_row.get("latency_ms") or 0.0) if isinstance(must_row, dict) else 0.0
+        )
 
         fallback_ids = _coerce_str_list(
             fallback_row.get("retrieved_session_ids") if isinstance(fallback_row, dict) else None
@@ -202,7 +208,9 @@ def build_two_stage_hybrid_report(
         fallback_scores = _coerce_float_list(
             fallback_row.get("retrieved_scores") if isinstance(fallback_row, dict) else None
         )
-        fallback_latency = float(fallback_row.get("latency_ms") or 0.0) if isinstance(fallback_row, dict) else 0.0
+        fallback_latency = (
+            float(fallback_row.get("latency_ms") or 0.0) if isinstance(fallback_row, dict) else 0.0
+        )
 
         if len(must_scores) < len(must_ids):
             must_scores = must_scores + [0.0] * (len(must_ids) - len(must_scores))

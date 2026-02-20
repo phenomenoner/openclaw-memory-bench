@@ -42,7 +42,9 @@ def test_search_maps_session_id_from_path(monkeypatch) -> None:
     }
 
     def _ok(*args, **kwargs):
-        return subprocess.CompletedProcess(args=["qmd"], returncode=0, stdout=json.dumps(payload), stderr="")
+        return subprocess.CompletedProcess(
+            args=["qmd"], returncode=0, stdout=json.dumps(payload), stderr=""
+        )
 
     monkeypatch.setattr(subprocess, "run", _ok)
 
@@ -61,7 +63,9 @@ def test_search_maps_non_empty_fixture_payload(monkeypatch) -> None:
     fixture_stdout = fixture_path.read_text(encoding="utf-8")
 
     def _ok(*args, **kwargs):
-        return subprocess.CompletedProcess(args=["qmd"], returncode=0, stdout=fixture_stdout, stderr="")
+        return subprocess.CompletedProcess(
+            args=["qmd"], returncode=0, stdout=fixture_stdout, stderr=""
+        )
 
     monkeypatch.setattr(subprocess, "run", _ok)
 
@@ -99,7 +103,9 @@ def test_search_wires_query_command_limit_and_extra_args(monkeypatch) -> None:
     def _ok(cmd, *args, **kwargs):
         captured["cmd"] = cmd
         captured["timeout"] = kwargs.get("timeout")
-        return subprocess.CompletedProcess(args=cmd, returncode=0, stdout='{"results": []}', stderr="")
+        return subprocess.CompletedProcess(
+            args=cmd, returncode=0, stdout='{"results": []}', stderr=""
+        )
 
     monkeypatch.setattr(subprocess, "run", _ok)
 

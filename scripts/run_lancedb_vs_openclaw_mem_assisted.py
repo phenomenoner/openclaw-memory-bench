@@ -62,7 +62,9 @@ def _session_importance_label(session: dict[str, Any]) -> str:
             return "ignore"
 
     # Fallback lexical proxy when dataset lacks labels.
-    merged = "\n".join(str(m.get("content") or "") for m in session.get("messages", []) if isinstance(m, dict)).lower()
+    merged = "\n".join(
+        str(m.get("content") or "") for m in session.get("messages", []) if isinstance(m, dict)
+    ).lower()
     must_kw = (
         "must remember",
         "important",
@@ -370,7 +372,9 @@ def _metric_pack(report: dict[str, Any]) -> dict[str, float]:
     }
 
 
-def _win_eval(*, baseline: dict[str, float], candidate: dict[str, float], policy: str) -> dict[str, Any]:
+def _win_eval(
+    *, baseline: dict[str, float], candidate: dict[str, float], policy: str
+) -> dict[str, Any]:
     p95_gain = (
         (baseline["search_ms_p95"] - candidate["search_ms_p95"]) / baseline["search_ms_p95"]
         if baseline["search_ms_p95"]
@@ -493,7 +497,9 @@ def main() -> int:
     args = ap.parse_args()
 
     repo_root = Path(__file__).resolve().parents[1]
-    dataset_path = repo_root / args.dataset if not Path(args.dataset).is_absolute() else Path(args.dataset)
+    dataset_path = (
+        repo_root / args.dataset if not Path(args.dataset).is_absolute() else Path(args.dataset)
+    )
     out_root = repo_root / args.output_root
 
     run_group = _resolve_run_group(explicit_run_group=args.run_group, run_label=args.run_label)
@@ -524,7 +530,9 @@ def main() -> int:
     if args.include_observational:
         obs_dataset, obs_stats = _compress_dataset_observational(raw)
         obs_path = run_dir / "derived-dataset-observational.json"
-        obs_path.write_text(json.dumps(obs_dataset, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        obs_path.write_text(
+            json.dumps(obs_dataset, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        )
 
         obs_report = _run_lancedb(
             dataset_path=obs_path,
@@ -561,7 +569,9 @@ def main() -> int:
     for policy in args.policies:
         filtered, filter_stats = _filter_dataset(raw, policy=policy)
         filtered_path = run_dir / f"derived-dataset-{policy}.json"
-        filtered_path.write_text(json.dumps(filtered, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        filtered_path.write_text(
+            json.dumps(filtered, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        )
 
         report = _run_lancedb(
             dataset_path=filtered_path,
@@ -624,7 +634,11 @@ def main() -> int:
                     "fallback_report_path": fallback_candidate["report"]["report_path"],
                     "mode": "must_count_gate",
                     "fusion_mode": args.hybrid_fusion_mode,
-                    "k_rrf": (float(args.hybrid_k_rrf) if args.hybrid_fusion_mode == "rrf_fusion" else None),
+                    "k_rrf": (
+                        float(args.hybrid_k_rrf)
+                        if args.hybrid_fusion_mode == "rrf_fusion"
+                        else None
+                    ),
                     "min_must_count": int(args.hybrid_min_must_count),
                     "stage2_max_additional": int(args.hybrid_stage2_max_additional),
                     "stage2_max_ms": stage2_max_ms,
@@ -640,7 +654,9 @@ def main() -> int:
         hybrid_dir = run_dir / "hybrid"
         hybrid_dir.mkdir(parents=True, exist_ok=True)
         hybrid_json = hybrid_dir / "retrieval-report.json"
-        hybrid_json.write_text(json.dumps(hybrid_report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        hybrid_json.write_text(
+            json.dumps(hybrid_report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        )
         hybrid_md = hybrid_dir / "retrieval-report.md"
         _write_hybrid_markdown(
             path=hybrid_md,
@@ -702,10 +718,16 @@ def main() -> int:
     # Pass if p95 improves >=20% while recall drop <=3pp and nDCG non-negative.
     wins: list[dict[str, Any]] = []
     for row in curve:
-        wins.append(_win_eval(baseline=row["baseline"], candidate=row["experimental"], policy=row["policy"]))
+        wins.append(
+            _win_eval(baseline=row["baseline"], candidate=row["experimental"], policy=row["policy"])
+        )
 
     if hybrid_tradeoff is not None:
-        wins.append(_win_eval(baseline=baseline_metrics, candidate=hybrid_tradeoff["hybrid"], policy="hybrid"))
+        wins.append(
+            _win_eval(
+                baseline=baseline_metrics, candidate=hybrid_tradeoff["hybrid"], policy="hybrid"
+            )
+        )
 
     arms: dict[str, Any] = {
         "baseline": baseline,
@@ -750,7 +772,9 @@ def main() -> int:
     }
 
     compare_json = run_dir / f"compare-{run_group}.json"
-    compare_json.write_text(json.dumps(compare, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    compare_json.write_text(
+        json.dumps(compare, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
 
     lines = [
         f"# Phase A/B compare ({run_group})",
@@ -859,7 +883,9 @@ def main() -> int:
                 "compare_md": str(compare_md),
                 "latest_pointer": str(latest_pointer),
                 "baseline_report": baseline["report_path"],
-                "observational_report": (observational["report"]["report_path"] if observational is not None else None),
+                "observational_report": (
+                    observational["report"]["report_path"] if observational is not None else None
+                ),
                 "experimental_reports": [x["report"]["report_path"] for x in candidates],
                 "hybrid_report": (hybrid["report"]["report_path"] if hybrid is not None else None),
             },

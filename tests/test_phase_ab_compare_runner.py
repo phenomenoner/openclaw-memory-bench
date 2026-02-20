@@ -6,7 +6,9 @@ from pathlib import Path
 from typing import Any
 
 
-_HYBRID_GATE_FIXTURE_PATH = Path(__file__).parent / "fixtures" / "hybrid" / "stage2_budget_latency_case.json"
+_HYBRID_GATE_FIXTURE_PATH = (
+    Path(__file__).parent / "fixtures" / "hybrid" / "stage2_budget_latency_case.json"
+)
 
 
 def _load_runner_module():
@@ -26,7 +28,10 @@ def _load_hybrid_gate_fixture() -> dict[str, Any]:
 def test_resolve_run_group_slug() -> None:
     runner = _load_runner_module()
 
-    assert runner._resolve_run_group(explicit_run_group="Deterministic Run 01", run_label="ignored") == "deterministic-run-01"
+    assert (
+        runner._resolve_run_group(explicit_run_group="Deterministic Run 01", run_label="ignored")
+        == "deterministic-run-01"
+    )
 
 
 def test_main_writes_stable_latest_pointer(monkeypatch, tmp_path, capsys) -> None:
@@ -167,7 +172,9 @@ def test_main_can_build_hybrid_arm(monkeypatch, tmp_path, capsys) -> None:
 
     out_root = tmp_path / "out"
 
-    def _stub_report(*, run_id: str, top_k: int, retrieved: list[str], scores: list[float], latency_ms: float):
+    def _stub_report(
+        *, run_id: str, top_k: int, retrieved: list[str], scores: list[float], latency_ms: float
+    ):
         hit = 1.0 if any(x in {"s1", "s2"} for x in retrieved[:top_k]) else 0.0
         recall = sum(1 for x in retrieved[:top_k] if x in {"s1", "s2"}) / 2.0
         return {
@@ -236,7 +243,9 @@ def test_main_can_build_hybrid_arm(monkeypatch, tmp_path, capsys) -> None:
             scores=scores,
             latency_ms=latency_ms,
         )
-        report_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        report_path.write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        )
 
         return {
             "label": run_suffix,
@@ -286,7 +295,9 @@ def test_main_can_build_hybrid_arm(monkeypatch, tmp_path, capsys) -> None:
     assert payload["hybrid_report"] is not None
 
 
-def test_main_hybrid_stage2_budget_counts_when_latency_cap_enforced(monkeypatch, tmp_path, capsys) -> None:
+def test_main_hybrid_stage2_budget_counts_when_latency_cap_enforced(
+    monkeypatch, tmp_path, capsys
+) -> None:
     runner = _load_runner_module()
 
     fixture = _load_hybrid_gate_fixture()
@@ -403,7 +414,9 @@ def test_main_hybrid_stage2_budget_counts_when_latency_cap_enforced(monkeypatch,
         metrics = _summary_from_results(payload["results"])
         payload["summary"] = metrics["summary"]
         payload["latency"] = metrics["latency"]
-        report_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        report_path.write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        )
         return payload
 
     def _fake_run_lancedb(**kwargs):

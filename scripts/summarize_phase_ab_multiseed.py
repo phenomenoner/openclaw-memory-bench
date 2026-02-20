@@ -177,8 +177,10 @@ def _extract_policy_block(compare: dict[str, Any], policy: str) -> dict[str, Any
                 "hit_at_k": float(esum["hit_at_k"]) - float(bsum["hit_at_k"]),
                 "mrr": float(esum["mrr"]) - float(bsum["mrr"]),
                 "ndcg_at_k": float(esum["ndcg_at_k"]) - float(bsum["ndcg_at_k"]),
-                "search_ms_p50": float(esum.get("search_ms_p50", 0.0)) - float(bsum.get("search_ms_p50", 0.0)),
-                "search_ms_p95": float(esum.get("search_ms_p95", 0.0)) - float(bsum.get("search_ms_p95", 0.0)),
+                "search_ms_p50": float(esum.get("search_ms_p50", 0.0))
+                - float(bsum.get("search_ms_p50", 0.0)),
+                "search_ms_p95": float(esum.get("search_ms_p95", 0.0))
+                - float(bsum.get("search_ms_p95", 0.0)),
             },
         }
 
@@ -278,7 +280,9 @@ def main() -> int:
             "search_ms_p95",
         ):
             vals = [r.policies[policy]["delta"][key] for r in rows]
-            block["delta"][key] = bootstrap_mean_ci(vals, n=args.bootstrap_n, seed=args.bootstrap_seed)
+            block["delta"][key] = bootstrap_mean_ci(
+                vals, n=args.bootstrap_n, seed=args.bootstrap_seed
+            )
 
         out["policies"][policy] = block
 
@@ -310,13 +314,23 @@ def main() -> int:
     lines.append(f"- latency p95(ms): {fmt_ci(out['baseline']['search_ms_p95'])}")
 
     for policy in ("must", "must+nice"):
-        lines.append(f"\n## Experimental policy = {policy} (Δ experimental - baseline; mean [95% CI] over seeds)")
-        lines.append(f"- compression items: {fmt_ci(out['policies'][policy]['compression_ratio_items'])}")
-        lines.append(f"- compression chars: {fmt_ci(out['policies'][policy]['compression_ratio_chars'])}")
+        lines.append(
+            f"\n## Experimental policy = {policy} (Δ experimental - baseline; mean [95% CI] over seeds)"
+        )
+        lines.append(
+            f"- compression items: {fmt_ci(out['policies'][policy]['compression_ratio_items'])}"
+        )
+        lines.append(
+            f"- compression chars: {fmt_ci(out['policies'][policy]['compression_ratio_chars'])}"
+        )
         for key in ("hit_at_k", "precision_at_k", "recall_at_k", "mrr", "ndcg_at_k"):
             lines.append(f"- Δ {key}: {fmt_ci(out['policies'][policy]['delta'][key])}")
-        lines.append(f"- Δ latency p50(ms): {fmt_ci(out['policies'][policy]['delta']['search_ms_p50'])}")
-        lines.append(f"- Δ latency p95(ms): {fmt_ci(out['policies'][policy]['delta']['search_ms_p95'])}")
+        lines.append(
+            f"- Δ latency p50(ms): {fmt_ci(out['policies'][policy]['delta']['search_ms_p50'])}"
+        )
+        lines.append(
+            f"- Δ latency p95(ms): {fmt_ci(out['policies'][policy]['delta']['search_ms_p95'])}"
+        )
 
     lines.append("\n## Notes")
     for n in out["notes"]:

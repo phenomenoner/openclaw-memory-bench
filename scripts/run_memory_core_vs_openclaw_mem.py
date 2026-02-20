@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 from datetime import UTC, datetime
 from pathlib import Path
@@ -98,7 +99,9 @@ def main() -> int:
     args = ap.parse_args()
 
     repo_root = Path(__file__).resolve().parents[1]
-    dataset_path = repo_root / args.dataset if not Path(args.dataset).is_absolute() else Path(args.dataset)
+    dataset_path = (
+        repo_root / args.dataset if not Path(args.dataset).is_absolute() else Path(args.dataset)
+    )
     out_root = repo_root / args.output_root
 
     run_group = f"{_now_tag()}-{_slug(args.run_label)}"
@@ -161,7 +164,9 @@ def main() -> int:
     }
 
     compare_json = run_dir / f"compare-{run_group}.json"
-    compare_json.write_text(json.dumps(compare, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    compare_json.write_text(
+        json.dumps(compare, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
 
     lines = [
         f"# Sidecar compare ({run_group})",

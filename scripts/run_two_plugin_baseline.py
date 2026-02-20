@@ -30,7 +30,9 @@ def _read_profile(path: Path) -> dict[str, Any]:
     return data
 
 
-def _prepare_dataset(profile: dict[str, Any], dataset_limit_override: int | None) -> tuple[Path, dict[str, Any]]:
+def _prepare_dataset(
+    profile: dict[str, Any], dataset_limit_override: int | None
+) -> tuple[Path, dict[str, Any]]:
     bench = str(profile["benchmark"])
     ds = profile.get("dataset") or {}
 
@@ -155,12 +157,15 @@ def _build_compare(
         "delta_openclaw_minus_memu": delta,
         "comparability": {
             "same_top_k": openclaw_report["top_k"] == memu_report["top_k"],
-            "same_question_count": openclaw_report["summary"]["questions_total"] == memu_report["summary"]["questions_total"],
+            "same_question_count": openclaw_report["summary"]["questions_total"]
+            == memu_report["summary"]["questions_total"],
         },
     }
 
     compare_json = run_dir / f"compare-{run_group}.json"
-    compare_json.write_text(json.dumps(compare, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    compare_json.write_text(
+        json.dumps(compare, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
 
     lines = [
         f"# Two-plugin compare report ({run_group})",
@@ -199,20 +204,35 @@ def _build_compare(
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Run two-plugin retrieval baseline and generate compare artifacts")
+    ap = argparse.ArgumentParser(
+        description="Run two-plugin retrieval baseline and generate compare artifacts"
+    )
     ap.add_argument("--profile", default="configs/run-profiles/two-plugin-baseline.json")
-    ap.add_argument("--dataset-limit", type=int, default=None, help="override dataset conversion limit")
-    ap.add_argument("--question-limit", type=int, default=None, help="override benchmark question count used in run")
+    ap.add_argument(
+        "--dataset-limit", type=int, default=None, help="override dataset conversion limit"
+    )
+    ap.add_argument(
+        "--question-limit",
+        type=int,
+        default=None,
+        help="override benchmark question count used in run",
+    )
     ap.add_argument("--run-label", default=None, help="optional suffix for run group")
     ap.add_argument("--gateway-url", default=None, help="override memu gateway url")
     ap.add_argument("--gateway-token", default=None, help="override memu gateway token")
     args = ap.parse_args()
 
     repo_root = Path(__file__).resolve().parents[1]
-    profile_path = (repo_root / args.profile).resolve() if not Path(args.profile).is_absolute() else Path(args.profile)
+    profile_path = (
+        (repo_root / args.profile).resolve()
+        if not Path(args.profile).is_absolute()
+        else Path(args.profile)
+    )
     profile = _read_profile(profile_path)
 
-    out_root = repo_root / str((profile.get("output") or {}).get("root") or "artifacts/full-benchmark")
+    out_root = repo_root / str(
+        (profile.get("output") or {}).get("root") or "artifacts/full-benchmark"
+    )
     run_group = _now_tag() + ("-" + _slug(args.run_label) if args.run_label else "")
     run_dir = out_root / run_group
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -222,7 +242,9 @@ def main() -> int:
 
     retrieval = profile.get("retrieval") or {}
     top_k = int(retrieval.get("top_k") or 10)
-    question_limit = args.question_limit if args.question_limit is not None else retrieval.get("question_limit")
+    question_limit = (
+        args.question_limit if args.question_limit is not None else retrieval.get("question_limit")
+    )
     question_limit = int(question_limit) if question_limit is not None else None
 
     (run_dir / "profile.lock.json").write_text(
@@ -298,7 +320,9 @@ def main() -> int:
             first_err = None
             if memu_report["failures"]:
                 first_err = memu_report["failures"][0].get("error")
-            raise RuntimeError(first_err or "memu preferred mode failed without successful questions")
+            raise RuntimeError(
+                first_err or "memu preferred mode failed without successful questions"
+            )
     except Exception as e:  # noqa: BLE001
         if not allow_fallback:
             raise

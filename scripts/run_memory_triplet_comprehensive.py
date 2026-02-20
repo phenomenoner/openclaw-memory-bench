@@ -41,7 +41,9 @@ def _log(msg: str, progress_log: Path | None) -> None:
             fh.write(line + "\n")
 
 
-def _prepare_dataset(*, benchmark: str, limit: int | None, out: Path) -> tuple[Path, dict[str, Any]]:
+def _prepare_dataset(
+    *, benchmark: str, limit: int | None, out: Path
+) -> tuple[Path, dict[str, Any]]:
     data = convert_benchmark(benchmark, limit=limit)
     validate_dataset_payload(data)
 
@@ -251,8 +253,12 @@ def _metric_pack(report: dict[str, Any]) -> dict[str, float]:
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Comprehensive triplet benchmark: memory-core, memory-lancedb, openclaw-mem")
-    ap.add_argument("--benchmark", default="longmemeval", choices=["locomo", "longmemeval", "convomem"])
+    ap = argparse.ArgumentParser(
+        description="Comprehensive triplet benchmark: memory-core, memory-lancedb, openclaw-mem"
+    )
+    ap.add_argument(
+        "--benchmark", default="longmemeval", choices=["locomo", "longmemeval", "convomem"]
+    )
     ap.add_argument("--dataset-limit", type=int, default=100)
     ap.add_argument("--question-limit", type=int, default=100)
     ap.add_argument("--top-k", type=int, default=10)
@@ -294,7 +300,11 @@ def main() -> int:
     )
 
     dataset = load_retrieval_dataset(dataset_path)
-    effective_questions = min(args.question_limit, len(dataset.questions)) if args.question_limit is not None else len(dataset.questions)
+    effective_questions = (
+        min(args.question_limit, len(dataset.questions))
+        if args.question_limit is not None
+        else len(dataset.questions)
+    )
 
     (run_dir / "dataset.meta.json").write_text(
         json.dumps(dataset_meta, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
@@ -420,10 +430,12 @@ def main() -> int:
         "progress_log": str(progress_log),
         "metrics": metrics,
         "delta_openclaw_mem_minus_memory_core": {
-            k: metrics["openclaw-mem"][k] - metrics["memory-core"][k] for k in metrics["memory-core"]
+            k: metrics["openclaw-mem"][k] - metrics["memory-core"][k]
+            for k in metrics["memory-core"]
         },
         "delta_lancedb_minus_memory_core": {
-            k: metrics["memory-lancedb"][k] - metrics["memory-core"][k] for k in metrics["memory-core"]
+            k: metrics["memory-lancedb"][k] - metrics["memory-core"][k]
+            for k in metrics["memory-core"]
         },
         "delta_openclaw_mem_minus_lancedb": {
             k: metrics["openclaw-mem"][k] - metrics["memory-lancedb"][k]
@@ -432,7 +444,9 @@ def main() -> int:
     }
 
     compare_json = run_dir / f"compare-{run_group}.json"
-    compare_json.write_text(json.dumps(compare, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    compare_json.write_text(
+        json.dumps(compare, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
 
     lines = [
         f"# Comprehensive triplet report ({run_group})",

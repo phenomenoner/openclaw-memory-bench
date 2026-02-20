@@ -77,7 +77,11 @@ def openclaw_agent_once(
     ]
     proc = subprocess.run(cmd, capture_output=True, text=True)
     if proc.returncode != 0:
-        raise RuntimeError(proc.stderr.strip() or proc.stdout.strip() or f"openclaw agent failed ({proc.returncode})")
+        raise RuntimeError(
+            proc.stderr.strip()
+            or proc.stdout.strip()
+            or f"openclaw agent failed ({proc.returncode})"
+        )
 
     data = json.loads(proc.stdout)
     payloads = (((data or {}).get("result") or {}).get("payloads")) or []
@@ -89,7 +93,9 @@ def openclaw_agent_once(
     return "\n".join(texts).strip()
 
 
-def get_anscheck_prompt(task: str, question: str, answer: str, response: str, *, abstention: bool = False) -> str:
+def get_anscheck_prompt(
+    task: str, question: str, answer: str, response: str, *, abstention: bool = False
+) -> str:
     # Adapted from LongMemEval src/evaluation/evaluate_qa.py
     if not abstention:
         if task in {"single-session-user", "single-session-assistant", "multi-session"}:
@@ -219,7 +225,12 @@ def main() -> int:
     ap.add_argument("--run-group", default=f"{_now_tag()}-longmemeval50-qa-openclaw")
     ap.add_argument("--limit", type=int, default=20)
     ap.add_argument("--seed", type=int, default=7)
-    ap.add_argument("--arms", nargs="+", default=["oracle", "observational"], choices=["oracle", "full", "observational"])
+    ap.add_argument(
+        "--arms",
+        nargs="+",
+        default=["oracle", "observational"],
+        choices=["oracle", "full", "observational"],
+    )
     ap.add_argument("--max-msg-chars", type=int, default=600)
     ap.add_argument("--thinking", default="high")
     args = ap.parse_args()
@@ -249,7 +260,9 @@ def main() -> int:
         "created_at": datetime.now(UTC).isoformat(),
         "note": "Uses openclaw agent (Gateway) for actor+judge; pacing enforced via sleeps.",
     }
-    (out_dir / "manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    (out_dir / "manifest.json").write_text(
+        json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
 
     summary: dict[str, Any] = {"manifest": manifest, "arms": {}}
 
@@ -261,7 +274,10 @@ def main() -> int:
 
         rows: list[Row] = []
 
-        with hyp_path.open("w", encoding="utf-8") as hyp_f, eval_path.open("w", encoding="utf-8") as eval_f:
+        with (
+            hyp_path.open("w", encoding="utf-8") as hyp_f,
+            eval_path.open("w", encoding="utf-8") as eval_f,
+        ):
             for i, q in enumerate(qs):
                 qid = str(q.get("question_id") or "")
                 qtype = str(q.get("question_type") or "")
@@ -271,7 +287,9 @@ def main() -> int:
 
                 rel_ids = set(str(x) for x in (q.get("relevant_session_ids") or []) if str(x))
                 if arm == "oracle":
-                    arm_sessions = [s for s in sessions if str(s.get("session_id") or "") in rel_ids]
+                    arm_sessions = [
+                        s for s in sessions if str(s.get("session_id") or "") in rel_ids
+                    ]
                 else:
                     arm_sessions = sessions
 
@@ -290,12 +308,18 @@ def main() -> int:
                     message=actor_message(history=history, question=question),
                     thinking=args.thinking,
                 )
-                print(json.dumps({"question_id": qid, "hypothesis": hyp}, ensure_ascii=False), file=hyp_f, flush=True)
+                print(
+                    json.dumps({"question_id": qid, "hypothesis": hyp}, ensure_ascii=False),
+                    file=hyp_f,
+                    flush=True,
+                )
                 hyp_f.flush()
 
                 # Judge
                 abstention = "_abs" in qid
-                judge_prompt = get_anscheck_prompt(qtype, question, answer, hyp, abstention=abstention)
+                judge_prompt = get_anscheck_prompt(
+                    qtype, question, answer, hyp, abstention=abstention
+                )
 
                 _sleep_jitter(rng)
                 judge_resp = openclaw_agent_once(
@@ -318,7 +342,7 @@ def main() -> int:
                 eval_f.flush()
                 rows.append(Row(qid, qtype, bool(label)))
 
-                print(f"[{arm}] {i+1}/{len(qs)} qid={qid} label={label}", flush=True)
+                print(f"[{arm}] {i + 1}/{len(qs)} qid={qid} label={label}", flush=True)
 
         by_type: dict[str, list[bool]] = {}
         for r in rows:
@@ -331,12 +355,19 @@ def main() -> int:
         arm_summary = {
             "n": len(rows),
             "accuracy": acc([r.label for r in rows]),
-            "by_question_type": {k: {"accuracy": acc(v), "n": len(v)} for k, v in sorted(by_type.items())},
-            "paths": {"hypotheses": str(hyp_path.relative_to(REPO_ROOT)), "eval": str(eval_path.relative_to(REPO_ROOT))},
+            "by_question_type": {
+                k: {"accuracy": acc(v), "n": len(v)} for k, v in sorted(by_type.items())
+            },
+            "paths": {
+                "hypotheses": str(hyp_path.relative_to(REPO_ROOT)),
+                "eval": str(eval_path.relative_to(REPO_ROOT)),
+            },
         }
         summary["arms"][arm] = arm_summary
 
-    (out_dir / "summary.json").write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    (out_dir / "summary.json").write_text(
+        json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
 
     md_lines: list[str] = []
     md_lines.append(f"# LongMemEval-50 QA compare (Phase A, OpenClaw) — {run_group}\n")

@@ -27,7 +27,9 @@ def _require(condition: bool, path: str, message: str, errors: list[str]) -> Non
 
 
 def _require_non_empty_str(value: Any, path: str, errors: list[str]) -> None:
-    _require(isinstance(value, str) and value.strip() != "", path, "must be a non-empty string", errors)
+    _require(
+        isinstance(value, str) and value.strip() != "", path, "must be a non-empty string", errors
+    )
 
 
 def _require_list(value: Any, path: str, errors: list[str]) -> list[Any]:
@@ -128,25 +130,49 @@ def validate_retrieval_report_payload(report: dict[str, Any]) -> None:
     _require(isinstance(summary, dict), "report.summary", "must be an object", errors)
     if isinstance(summary, dict):
         for key in ("questions_total", "questions_succeeded", "questions_failed"):
-            _require(isinstance(summary.get(key), int), f"report.summary.{key}", "must be an integer", errors)
+            _require(
+                isinstance(summary.get(key), int),
+                f"report.summary.{key}",
+                "must be an integer",
+                errors,
+            )
         _validate_metrics(summary, "report.summary", errors)
 
         breakdown = summary.get("failure_breakdown")
-        _require(isinstance(breakdown, dict), "report.summary.failure_breakdown", "must be an object", errors)
+        _require(
+            isinstance(breakdown, dict),
+            "report.summary.failure_breakdown",
+            "must be an object",
+            errors,
+        )
         if isinstance(breakdown, dict):
             for key in ("by_code", "by_category", "by_phase"):
                 obj = breakdown.get(key)
-                _require(isinstance(obj, dict), f"report.summary.failure_breakdown.{key}", "must be an object", errors)
+                _require(
+                    isinstance(obj, dict),
+                    f"report.summary.failure_breakdown.{key}",
+                    "must be an object",
+                    errors,
+                )
                 if isinstance(obj, dict):
                     for kk, vv in obj.items():
-                        _require_non_empty_str(kk, f"report.summary.failure_breakdown.{key} key", errors)
-                        _require(isinstance(vv, int), f"report.summary.failure_breakdown.{key}.{kk}", "must be an integer", errors)
+                        _require_non_empty_str(
+                            kk, f"report.summary.failure_breakdown.{key} key", errors
+                        )
+                        _require(
+                            isinstance(vv, int),
+                            f"report.summary.failure_breakdown.{key}.{kk}",
+                            "must be an integer",
+                            errors,
+                        )
 
     latency = report.get("latency")
     _require(isinstance(latency, dict), "report.latency", "must be an object", errors)
     if isinstance(latency, dict):
         for key in ("search_ms_p50", "search_ms_p95", "search_ms_mean"):
-            _require(_is_number(latency.get(key)), f"report.latency.{key}", "must be a number", errors)
+            _require(
+                _is_number(latency.get(key)), f"report.latency.{key}", "must be a number", errors
+            )
 
     results = _require_list(report.get("results"), "report.results", errors)
     for ri, row in enumerate(results):
@@ -162,10 +188,17 @@ def validate_retrieval_report_payload(report: dict[str, Any]) -> None:
         ):
             _require_non_empty_str(row.get(key), f"{rpath}.{key}", errors)
 
-        for key in ("relevant_session_ids", "retrieved_session_ids", "retrieved_observation_ids", "retrieved_sources"):
+        for key in (
+            "relevant_session_ids",
+            "retrieved_session_ids",
+            "retrieved_observation_ids",
+            "retrieved_sources",
+        ):
             _require(isinstance(row.get(key), list), f"{rpath}.{key}", "must be a list", errors)
 
-        _require(_is_number(row.get("latency_ms")), f"{rpath}.latency_ms", "must be a number", errors)
+        _require(
+            _is_number(row.get("latency_ms")), f"{rpath}.latency_ms", "must be a number", errors
+        )
 
         metrics = row.get("metrics")
         _require(isinstance(metrics, dict), f"{rpath}.metrics", "must be an object", errors)
@@ -183,7 +216,9 @@ def validate_retrieval_report_payload(report: dict[str, Any]) -> None:
         _require_non_empty_str(f.get("phase"), f"{fpath}.phase", errors)
         _require_non_empty_str(f.get("error_code"), f"{fpath}.error_code", errors)
         _require_non_empty_str(f.get("error_category"), f"{fpath}.error_category", errors)
-        _require(isinstance(f.get("retryable"), bool), f"{fpath}.retryable", "must be a boolean", errors)
+        _require(
+            isinstance(f.get("retryable"), bool), f"{fpath}.retryable", "must be a boolean", errors
+        )
         _require_non_empty_str(f.get("exception_type"), f"{fpath}.exception_type", errors)
         _require_non_empty_str(f.get("error"), f"{fpath}.error", errors)
 
@@ -191,7 +226,9 @@ def validate_retrieval_report_payload(report: dict[str, Any]) -> None:
         raise SchemaValidationError(errors)
 
 
-def validate_required_keys(payload: dict[str, Any], keys: Sequence[str], *, path: str = "object") -> None:
+def validate_required_keys(
+    payload: dict[str, Any], keys: Sequence[str], *, path: str = "object"
+) -> None:
     errors: list[str] = []
     for key in keys:
         _require(key in payload, f"{path}.{key}", "is required", errors)

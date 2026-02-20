@@ -96,12 +96,7 @@ def openai_chat_completions(
             with urllib.request.urlopen(req, timeout=timeout_s) as resp:
                 raw = resp.read().decode("utf-8")
             data = json.loads(raw)
-            return (
-                data.get("choices", [{}])[0]
-                .get("message", {})
-                .get("content", "")
-                .strip()
-            )
+            return data.get("choices", [{}])[0].get("message", {}).get("content", "").strip()
         except urllib.error.HTTPError as e:
             # Read body for debugging (keep local)
             try:
@@ -275,13 +270,20 @@ def main() -> int:
     ap.add_argument("--judge-model", default="")
     ap.add_argument("--limit", type=int, default=20, help="question limit (default 20 for Phase A)")
     ap.add_argument("--seed", type=int, default=7)
-    ap.add_argument("--arms", nargs="+", default=["oracle", "observational"], choices=["oracle", "full", "observational"])
+    ap.add_argument(
+        "--arms",
+        nargs="+",
+        default=["oracle", "observational"],
+        choices=["oracle", "full", "observational"],
+    )
     ap.add_argument("--max-msg-chars", type=int, default=600)
     args = ap.parse_args()
 
     api_key = os.getenv("OPENAI_API_KEY") or ""
     if not api_key.strip():
-        raise SystemExit("OPENAI_API_KEY is missing/empty. Set it in the environment before running.")
+        raise SystemExit(
+            "OPENAI_API_KEY is missing/empty. Set it in the environment before running."
+        )
 
     judge_model = args.judge_model.strip() or args.model
 
@@ -311,7 +313,9 @@ def main() -> int:
         "created_at": datetime.now(UTC).isoformat(),
         "note": "Phase A QA compare on repo-local longmemeval-50 format (not official LongMemEval runner).",
     }
-    (out_dir / "manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    (out_dir / "manifest.json").write_text(
+        json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
 
     summary: dict[str, Any] = {"manifest": manifest, "arms": {}}
 
@@ -323,7 +327,10 @@ def main() -> int:
 
         rows: list[Row] = []
 
-        with hyp_path.open("w", encoding="utf-8") as hyp_f, eval_path.open("w", encoding="utf-8") as eval_f:
+        with (
+            hyp_path.open("w", encoding="utf-8") as hyp_f,
+            eval_path.open("w", encoding="utf-8") as eval_f,
+        ):
             for i, q in enumerate(qs):
                 qid = str(q.get("question_id") or "")
                 qtype = str(q.get("question_type") or "")
@@ -333,7 +340,9 @@ def main() -> int:
 
                 rel_ids = set(str(x) for x in (q.get("relevant_session_ids") or []) if str(x))
                 if arm == "oracle":
-                    arm_sessions = [s for s in sessions if str(s.get("session_id") or "") in rel_ids]
+                    arm_sessions = [
+                        s for s in sessions if str(s.get("session_id") or "") in rel_ids
+                    ]
                 else:
                     arm_sessions = sessions
 
@@ -352,11 +361,16 @@ def main() -> int:
                     max_tokens=256,
                 )
 
-                print(json.dumps({"question_id": qid, "hypothesis": hyp}, ensure_ascii=False), file=hyp_f)
+                print(
+                    json.dumps({"question_id": qid, "hypothesis": hyp}, ensure_ascii=False),
+                    file=hyp_f,
+                )
 
                 # Judge
                 abstention = "_abs" in qid
-                judge_prompt = get_anscheck_prompt(qtype, question, answer, hyp, abstention=abstention)
+                judge_prompt = get_anscheck_prompt(
+                    qtype, question, answer, hyp, abstention=abstention
+                )
 
                 _jitter_sleep()
                 judge_resp = openai_chat_completions(
@@ -384,7 +398,7 @@ def main() -> int:
                 rows.append(Row(qid, qtype, question, answer, hyp, bool(label)))
 
                 # Progress line
-                print(f"[{arm}] {i+1}/{len(qs)} qid={qid} label={label}")
+                print(f"[{arm}] {i + 1}/{len(qs)} qid={qid} label={label}")
 
         # Summarize
         by_type: dict[str, list[bool]] = {}
@@ -398,13 +412,20 @@ def main() -> int:
         arm_summary = {
             "n": len(rows),
             "accuracy": acc([r.label for r in rows]),
-            "by_question_type": {k: {"accuracy": acc(v), "n": len(v)} for k, v in sorted(by_type.items())},
-            "paths": {"hypotheses": str(hyp_path.relative_to(REPO_ROOT)), "eval": str(eval_path.relative_to(REPO_ROOT))},
+            "by_question_type": {
+                k: {"accuracy": acc(v), "n": len(v)} for k, v in sorted(by_type.items())
+            },
+            "paths": {
+                "hypotheses": str(hyp_path.relative_to(REPO_ROOT)),
+                "eval": str(eval_path.relative_to(REPO_ROOT)),
+            },
         }
         summary["arms"][arm] = arm_summary
 
     # Write summary
-    (out_dir / "summary.json").write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    (out_dir / "summary.json").write_text(
+        json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
 
     # Markdown
     md_lines: list[str] = []

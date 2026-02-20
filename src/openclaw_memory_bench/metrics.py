@@ -32,7 +32,9 @@ def score_retrieval(retrieved_ids: list[str], relevant_ids: list[str], k: int) -
     relevant = set(relevant_ids)
 
     if not relevant:
-        return RetrievalMetrics(hit_at_k=0.0, precision_at_k=0.0, recall_at_k=0.0, mrr=0.0, ndcg_at_k=0.0)
+        return RetrievalMetrics(
+            hit_at_k=0.0, precision_at_k=0.0, recall_at_k=0.0, mrr=0.0, ndcg_at_k=0.0
+        )
 
     binary = [1 if x in relevant else 0 for x in ranked]
     rel_count = sum(binary)

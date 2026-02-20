@@ -138,7 +138,11 @@ class OpenClawMemAdapter:
         )
         out = self._run(cmd)
         result = json.loads(out)
-        return {"document_ids": result.get("ids", []), "container_tag": container_tag, "db_path": db_path}
+        return {
+            "document_ids": result.get("ids", []),
+            "container_tag": container_tag,
+            "db_path": db_path,
+        }
 
     def await_indexing(self, ingest_result: dict, container_tag: str) -> None:
         # local SQLite/FTS path is effectively immediate for now
