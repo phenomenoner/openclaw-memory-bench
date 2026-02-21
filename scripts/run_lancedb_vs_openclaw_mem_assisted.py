@@ -5,7 +5,9 @@ import json
 import re
 from datetime import UTC, datetime
 from pathlib import Path
+from time import monotonic
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from openclaw_memory_bench.dataset import load_retrieval_dataset
 from openclaw_memory_bench.hybrid import build_two_stage_hybrid_report
@@ -13,8 +15,57 @@ from openclaw_memory_bench.manifest import build_retrieval_manifest, file_sha256
 from openclaw_memory_bench.runner import run_retrieval_benchmark, save_report
 
 
+_TZ_TAIPEI = ZoneInfo("Asia/Taipei")
+
+
 def _now_tag() -> str:
     return datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+
+
+def _now_taipei_iso() -> str:
+    return datetime.now(_TZ_TAIPEI).isoformat(timespec="seconds")
+
+
+def _append_jsonl(path: Path, payload: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as fp:
+        fp.write(json.dumps(payload, ensure_ascii=False) + "\n")
+
+
+def _render_progress_markdown(
+    *,
+    path: Path,
+    run_group: str,
+    events: list[dict[str, Any]],
+) -> None:
+    lines = [
+        f"# Phase A/B progress receipts ({run_group})",
+        "",
+        "Deterministic per-arm timing/progress trail (Asia/Taipei timestamps).",
+        "",
+    ]
+
+    for item in events:
+        arm = str(item.get("arm") or "-")
+        status = str(item.get("status") or "-")
+        elapsed = item.get("elapsed_seconds")
+        arm_elapsed = item.get("arm_elapsed_seconds")
+        extra = item.get("extra") if isinstance(item.get("extra"), dict) else {}
+
+        bits = [f"{item.get('seq', '?')}. {item.get('ts_taipei', '-')}"]
+        bits.append(f"[{arm}] {status}")
+        if isinstance(elapsed, (int, float)):
+            bits.append(f"elapsed={float(elapsed):.3f}s")
+        if isinstance(arm_elapsed, (int, float)):
+            bits.append(f"arm_elapsed={float(arm_elapsed):.3f}s")
+        if extra.get("report_path"):
+            bits.append(f"report={extra['report_path']}")
+        if extra.get("note"):
+            bits.append(f"note={extra['note']}")
+
+        lines.append("- " + " | ".join(bits))
+
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 def _slug(txt: str) -> str:
@@ -506,6 +557,46 @@ def main() -> int:
     run_dir = out_root / run_group
     run_dir.mkdir(parents=True, exist_ok=True)
 
+    progress_jsonl = run_dir / "progress-receipts.jsonl"
+    progress_md = run_dir / "progress-receipts.md"
+    if progress_jsonl.exists():
+        progress_jsonl.unlink()
+    if progress_md.exists():
+        progress_md.unlink()
+
+    progress_events: list[dict[str, Any]] = []
+    run_started_mono = monotonic()
+    arm_started_mono: dict[str, float] = {}
+
+    def _progress(
+        *,
+        arm: str,
+        status: str,
+        extra: dict[str, Any] | None = None,
+        arm_elapsed_seconds: float | None = None,
+    ) -> None:
+        event = {
+            "seq": len(progress_events) + 1,
+            "ts_utc": datetime.now(UTC).isoformat(),
+            "ts_taipei": _now_taipei_iso(),
+            "run_group": run_group,
+            "arm": arm,
+            "status": status,
+            "elapsed_seconds": round(monotonic() - run_started_mono, 6),
+        }
+        if arm_elapsed_seconds is not None:
+            event["arm_elapsed_seconds"] = round(arm_elapsed_seconds, 6)
+        if extra:
+            event["extra"] = extra
+        progress_events.append(event)
+        _append_jsonl(progress_jsonl, event)
+        _render_progress_markdown(path=progress_md, run_group=run_group, events=progress_events)
+
+    _progress(arm="run", status="started", extra={"dataset_path": str(dataset_path)})
+
+    baseline_arm = "baseline"
+    arm_started_mono[baseline_arm] = monotonic()
+    _progress(arm=baseline_arm, status="started")
     baseline = _run_lancedb(
         dataset_path=dataset_path,
         out_dir=run_dir,
@@ -522,6 +613,12 @@ def main() -> int:
         probe_on_unknown_clear=args.lancedb_probe_on_unknown_clear,
         extra_manifest_fields={"arm": "baseline", "ingest_policy": "all-sessions"},
     )
+    _progress(
+        arm=baseline_arm,
+        status="completed",
+        arm_elapsed_seconds=monotonic() - arm_started_mono[baseline_arm],
+        extra={"report_path": baseline["report_path"]},
+    )
 
     raw = _load_json(dataset_path)
     dataset_sha = file_sha256(dataset_path)
@@ -534,6 +631,9 @@ def main() -> int:
             json.dumps(obs_dataset, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
         )
 
+        obs_arm = "observational"
+        arm_started_mono[obs_arm] = monotonic()
+        _progress(arm=obs_arm, status="started")
         obs_report = _run_lancedb(
             dataset_path=obs_path,
             out_dir=run_dir,
@@ -555,6 +655,12 @@ def main() -> int:
                 "observational_stats": obs_stats,
             },
         )
+        _progress(
+            arm=obs_arm,
+            status="completed",
+            arm_elapsed_seconds=monotonic() - arm_started_mono[obs_arm],
+            extra={"report_path": obs_report["report_path"]},
+        )
 
         observational = {
             "mode": "observational",
@@ -573,6 +679,9 @@ def main() -> int:
             json.dumps(filtered, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
         )
 
+        exp_arm = f"experimental:{policy}"
+        arm_started_mono[exp_arm] = monotonic()
+        _progress(arm=exp_arm, status="started")
         report = _run_lancedb(
             dataset_path=filtered_path,
             out_dir=run_dir,
@@ -594,6 +703,12 @@ def main() -> int:
                 "source_dataset_sha256": dataset_sha,
             },
         )
+        _progress(
+            arm=exp_arm,
+            status="completed",
+            arm_elapsed_seconds=monotonic() - arm_started_mono[exp_arm],
+            extra={"report_path": report["report_path"]},
+        )
 
         candidates.append(
             {
@@ -607,14 +722,21 @@ def main() -> int:
 
     hybrid: dict[str, Any] | None = None
     if args.include_hybrid:
+        hybrid_arm = "hybrid"
+        arm_started_mono[hybrid_arm] = monotonic()
+        _progress(arm=hybrid_arm, status="started")
+
         by_policy = {cand["policy"]: cand for cand in candidates}
         must_candidate = by_policy.get(args.hybrid_must_policy)
         fallback_candidate = by_policy.get(args.hybrid_fallback_policy)
         if must_candidate is None or fallback_candidate is None:
-            raise ValueError(
+            note = (
                 "--include-hybrid requires both policies in --policies; "
                 f"missing must={args.hybrid_must_policy!r} or fallback={args.hybrid_fallback_policy!r}."
             )
+            _progress(arm=hybrid_arm, status="failed", extra={"note": note})
+            _progress(arm="run", status="failed", extra={"note": note})
+            raise ValueError(note)
 
         must_report_payload = _load_json(Path(must_candidate["report"]["report_path"]))
         fallback_report_payload = _load_json(Path(fallback_candidate["report"]["report_path"]))
@@ -683,6 +805,12 @@ def main() -> int:
             "stage_counts": hybrid_extra.get("stage_counts", {}),
             "md_path": str(hybrid_md),
         }
+        _progress(
+            arm=hybrid_arm,
+            status="completed",
+            arm_elapsed_seconds=monotonic() - arm_started_mono[hybrid_arm],
+            extra={"report_path": str(hybrid_json), "markdown_path": str(hybrid_md)},
+        )
 
     baseline_metrics = _metric_pack(baseline)
     curve: list[dict[str, Any]] = []
@@ -874,6 +1002,16 @@ def main() -> int:
         encoding="utf-8",
     )
 
+    _progress(
+        arm="run",
+        status="completed",
+        extra={
+            "compare_json": str(compare_json),
+            "compare_md": str(compare_md),
+            "latest_pointer": str(latest_pointer),
+        },
+    )
+
     print(
         json.dumps(
             {
@@ -882,6 +1020,8 @@ def main() -> int:
                 "compare_json": str(compare_json),
                 "compare_md": str(compare_md),
                 "latest_pointer": str(latest_pointer),
+                "progress_receipts_jsonl": str(progress_jsonl),
+                "progress_receipts_md": str(progress_md),
                 "baseline_report": baseline["report_path"],
                 "observational_report": (
                     observational["report"]["report_path"] if observational is not None else None

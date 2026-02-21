@@ -132,6 +132,23 @@ def test_main_writes_stable_latest_pointer(monkeypatch, tmp_path, capsys) -> Non
     assert payload["run_group"] == run_group
     assert payload["latest_pointer"].endswith("/LATEST.md")
 
+    progress_jsonl = Path(payload["progress_receipts_jsonl"])
+    progress_md = Path(payload["progress_receipts_md"])
+    assert progress_jsonl.exists()
+    assert progress_md.exists()
+
+    events = [
+        json.loads(line)
+        for line in progress_jsonl.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    statuses = {(evt["arm"], evt["status"]) for evt in events}
+    assert ("run", "started") in statuses
+    assert ("baseline", "started") in statuses
+    assert ("baseline", "completed") in statuses
+    assert ("experimental:must", "completed") in statuses
+    assert ("run", "completed") in statuses
+
 
 def test_main_can_build_hybrid_arm(monkeypatch, tmp_path, capsys) -> None:
     runner = _load_runner_module()
