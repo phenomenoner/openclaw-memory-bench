@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from typing import Any
+from typing import Any, Iterable
 
 from openclaw_memory_bench.gateway_client import invoke_tool
 from openclaw_memory_bench.protocol import SearchHit, Session
@@ -30,6 +30,14 @@ class MemoryLanceDBAdapter:
         self.session_key = "main"
         self.recall_limit_factor = 10
         self.probe_on_unknown_clear = True
+
+        # Ingest shaping: memory-lancedb uses embeddings with a hard input token cap.
+        # We store ONE memory per session for cost/perf stability, but we must bound
+        # the total text length to avoid provider errors (e.g. 400 "max context length").
+        self.ingest_max_chars = 20_000
+        self.ingest_max_turns = 0  # 0 disables turn-count shaping
+        self.ingest_max_chars_per_turn = 0  # 0 disables per-turn shaping
+
         self._container_ids: dict[str, list[str]] = {}
 
     def initialize(self, config: dict) -> None:
@@ -37,6 +45,13 @@ class MemoryLanceDBAdapter:
         self.session_key = str(config.get("session_key") or "main")
         self.recall_limit_factor = int(config.get("recall_limit_factor") or 10)
         self.probe_on_unknown_clear = bool(config.get("probe_on_unknown_clear", True))
+
+        # Optional ingest shaping knobs (provider-independent safety belts).
+        self.ingest_max_chars = int(config.get("ingest_max_chars") or self.ingest_max_chars)
+        self.ingest_max_turns = int(config.get("ingest_max_turns") or self.ingest_max_turns)
+        self.ingest_max_chars_per_turn = int(
+            config.get("ingest_max_chars_per_turn") or self.ingest_max_chars_per_turn
+        )
 
     @staticmethod
     def _container_marker(container_tag: str) -> str:
@@ -87,14 +102,53 @@ class MemoryLanceDBAdapter:
 
         self._container_ids.pop(container_tag, None)
 
+    @staticmethod
+    def _truncate_middle(s: str, max_chars: int) -> str:
+        if max_chars <= 0 or len(s) <= max_chars:
+            return s
+        # Keep head+tail to preserve both early setup and late conclusions.
+        head = max_chars // 2
+        tail = max_chars - head
+        return s[:head] + "\n…(truncated)…\n" + s[-tail:]
+
+    @staticmethod
+    def _shape_messages(
+        messages: Iterable, *, max_turns: int, max_chars_per_turn: int
+    ) -> list[str]:
+        # messages is Sequence[SessionMessage], but keep adapter import-light.
+        parts = [f"{m.role}: {m.content}" for m in messages]
+
+        if max_chars_per_turn and max_chars_per_turn > 0:
+            parts = [MemoryLanceDBAdapter._truncate_middle(p, max_chars_per_turn) for p in parts]
+
+        if max_turns and max_turns > 0 and len(parts) > max_turns:
+            # Head+tail strategy to keep both early and late session content.
+            head = max_turns // 2
+            tail = max_turns - head
+            parts = parts[:head] + ["…(turns truncated)…"] + parts[-tail:]
+
+        return parts
+
     def ingest(self, sessions: list[Session], container_tag: str) -> dict:
         marker = self._container_marker(container_tag)
         stored_ids: list[str] = []
 
         # Store one memory per session for cost/perf stability.
         for session in sessions:
-            turns = "\n".join(f"{m.role}: {m.content}" for m in session.messages)
-            text = f"{marker} [session:{session.session_id}]\n{turns}"
+            header = f"{marker} [session:{session.session_id}]\n"
+
+            parts = self._shape_messages(
+                session.messages,
+                max_turns=self.ingest_max_turns,
+                max_chars_per_turn=self.ingest_max_chars_per_turn,
+            )
+            turns = "\n".join(parts)
+
+            # Hard cap the total payload sent to memory_store to stay within embedding limits.
+            # Keep the header always intact so the session marker survives truncation.
+            budget = max(0, int(self.ingest_max_chars) - len(header))
+            shaped_turns = self._truncate_middle(turns, budget) if budget else ""
+            text = header + shaped_turns
 
             res = self._invoke(
                 "memory_store",
